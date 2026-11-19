@@ -53,8 +53,19 @@ class GestorRedYVoz {
         this.codigo_sala = this.generarCodigoSalaAleatorio();
         const id_completo_host = GestorRedYVoz.PREFIJO_PEER_SALA + this.codigo_sala;
 
+        const opciones_peer = {
+            config: {
+                iceServers: [
+                    { urls: "stun:stun.l.google.com:19302" },
+                    { urls: "stun:stun1.l.google.com:19302" },
+                    { urls: "stun:stun2.l.google.com:19302" },
+                    { urls: "stun:global.stun.twilio.com:3478" }
+                ]
+            }
+        };
+
         try {
-            this.peer_actual = new Peer(id_completo_host);
+            this.peer_actual = new Peer(id_completo_host, opciones_peer);
         } catch (err) {
             if (callback_error) callback_error("No se pudo cargar el servicio PeerJS.");
             return;
@@ -79,6 +90,7 @@ class GestorRedYVoz {
         });
 
         this.peer_actual.on("error", (error_peer) => {
+            console.error("Error en Peer Host:", error_peer);
             if (error_peer.type === "unavailable-id") {
                 this.crearSalaComoAnfitrion(nombre_jugador, modo_seleccionado, callback_exito, callback_error);
                 return;
@@ -101,8 +113,19 @@ class GestorRedYVoz {
         this.codigo_sala = codigo_limpio;
         const id_host_destino = GestorRedYVoz.PREFIJO_PEER_SALA + this.codigo_sala;
 
+        const opciones_peer = {
+            config: {
+                iceServers: [
+                    { urls: "stun:stun.l.google.com:19302" },
+                    { urls: "stun:stun1.l.google.com:19302" },
+                    { urls: "stun:stun2.l.google.com:19302" },
+                    { urls: "stun:global.stun.twilio.com:3478" }
+                ]
+            }
+        };
+
         try {
-            this.peer_actual = new Peer();
+            this.peer_actual = new Peer(opciones_peer);
         } catch (err) {
             if (callback_error) callback_error("No se pudo iniciar PeerJS en este navegador.");
             return;
@@ -115,13 +138,23 @@ class GestorRedYVoz {
             const conn = this.peer_actual.connect(id_host_destino, { reliable: true });
             this.conexion_al_host = conn;
 
+            const enviarSolicitud = () => {
+                try {
+                    conn.send({
+                        tipo: "SOLICITUD_UNIRSE",
+                        id_peer: this.mi_id_peer,
+                        nombre: this.mi_nombre,
+                        micro_activo: this.microfono_activo
+                    });
+                } catch (e) {
+                    console.error("Error al enviar solicitud:", e);
+                }
+            };
+
             conn.on("open", () => {
-                conn.send({
-                    tipo: "SOLICITUD_UNIRSE",
-                    id_peer: this.mi_id_peer,
-                    nombre: this.mi_nombre,
-                    micro_activo: this.microfono_activo
-                });
+                enviarSolicitud();
+                // Enviar un respaldo a los 500ms por si el host aun estaba inicializando el canal
+                setTimeout(enviarSolicitud, 500);
                 if (callback_exito) callback_exito(this.codigo_sala, this.obtenerEnlaceInvitacion());
             });
 
@@ -133,9 +166,14 @@ class GestorRedYVoz {
                 mostrarAvisoModal("Conexión finalizada", "El anfitrión cerró la sala o se perdió la conexión.");
                 accionSalirSalaOnline();
             });
+
+            conn.on("error", (err_conn) => {
+                console.error("Error en conexión de datos:", err_conn);
+            });
         });
 
         this.peer_actual.on("error", (error_peer) => {
+            console.error("Error en Peer Invitado:", error_peer);
             if (callback_error) {
                 callback_error("No se encontró la sala '" + this.codigo_sala + "' o el anfitrión no está conectado.");
             }
@@ -144,11 +182,18 @@ class GestorRedYVoz {
 
     // Configura los eventos de datos para cada amigo que se conecta al Anfitrion
     configurarConexionEntranteEnHost(conn) {
-        conn.on("open", () => {
+        const registrarEventos = () => {
             this.conexiones_clientes.set(conn.peer, conn);
-        });
+        };
+
+        if (conn.open) {
+            registrarEventos();
+        } else {
+            conn.on("open", registrarEventos);
+        }
 
         conn.on("data", (mensaje) => {
+            this.conexiones_clientes.set(conn.peer, conn);
             this.procesarMensajeEnHost(conn, mensaje);
         });
 
@@ -158,6 +203,10 @@ class GestorRedYVoz {
             this.difundirListaJugadoresSala();
             actualizarVistaLobbyOnline();
             actualizarChipsVozEnJuego();
+        });
+
+        conn.on("error", (err_c) => {
+            console.error("Error en conexión entrante host:", err_c);
         });
     }
 
