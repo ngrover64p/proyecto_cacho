@@ -1,6 +1,4 @@
-# Juego de Cacho Boliviano — Versión Web (Local, IA y Online con Audio)
-
-Versión web adaptable a **PC y Celular** del proyecto de Cacho Boliviano, lista para publicarse gratis en **GitHub Pages**.
+# Juego de Cacho
 
 ## Características incluidas
 1. **Reglas completas del proyecto original (`MVC`):**
