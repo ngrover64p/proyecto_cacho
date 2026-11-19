@@ -41,7 +41,7 @@ class GestorRedYVoz {
         this.conexiones_clientes = new Map();
         this.conexion_al_host = null;
 
-        // Lista de jugadores en la sala: [{ id_peer, nombre, es_host, micro_activo, hablando }]
+        // Lista de jugadores en la sala: [{ id_peer, nombre, es_host, micro_activo, hablando, conectado }]
         this.jugadores_sala = [];
 
         // Estado de Audio WebRTC (tipo Meet)
@@ -117,7 +117,8 @@ class GestorRedYVoz {
                 nombre: this.mi_nombre,
                 es_host: true,
                 micro_activo: this.microfono_activo,
-                hablando: false
+                hablando: false,
+                conectado: true
             }];
             this.configurarRecepcionLlamadasVoz();
             if (callback_exito) callback_exito(this.codigo_sala, this.obtenerEnlaceInvitacion());
@@ -197,7 +198,7 @@ class GestorRedYVoz {
             console.error("Error en Peer Invitado:", error_peer);
             if (error_peer.type === "peer-unavailable") {
                 if (callback_error) {
-                    callback_error("No se encontró la sala '" + this.codigo_sala + "'. Asegúrate de que el anfitrión tenga su pantalla en el juego.");
+                    callback_error("No se encontró la sala '" + this.codigo_sala + "'. Asegúrate de que el anfitrión tenga su pantalla abierta.");
                 }
                 return;
             }
@@ -245,7 +246,7 @@ class GestorRedYVoz {
         });
 
         conn.on("close", () => {
-            mostrarAvisoModal("Conexión finalizada", "El anfitrión cerró la sala o se perdió la conexión.");
+            mostrarAvisoModal("Conexión finalizada", "El anfitrión cerró la sala o fuiste desconectado.");
             accionSalirSalaOnline();
         });
 
@@ -288,10 +289,25 @@ class GestorRedYVoz {
 
         conn.on("close", () => {
             this.conexiones_clientes.delete(conn.peer);
-            this.jugadores_sala = this.jugadores_sala.filter(j => j.id_peer !== conn.peer);
-            this.difundirListaJugadoresSala();
-            actualizarVistaLobbyOnline();
-            actualizarChipsVozEnJuego();
+            this.eliminarAudioRemoto(conn.peer);
+
+            if (this.en_partida_online) {
+                // En plena partida: NO lo borramos de la libreta, solo lo marcamos como desconectado
+                for (const j of this.jugadores_sala) {
+                    if (j.id_peer === conn.peer) {
+                        j.conectado = false;
+                    }
+                }
+                this.difundirListaJugadoresSala();
+                actualizarChipsVozEnJuego();
+                actualizarInterfazCompleta();
+            } else {
+                // En la sala de espera (lobby): lo removemos de la lista
+                this.jugadores_sala = this.jugadores_sala.filter(j => j.id_peer !== conn.peer);
+                this.difundirListaJugadoresSala();
+                actualizarVistaLobbyOnline();
+                actualizarChipsVozEnJuego();
+            }
         });
 
         conn.on("error", (err_c) => {
@@ -305,29 +321,64 @@ class GestorRedYVoz {
 
         switch (mensaje.tipo) {
             case "SOLICITUD_UNIRSE": {
+                // Verificar si es un jugador que se habia desconectado y regresa con el mismo nombre o id
+                const jugador_reconectado = this.jugadores_sala.find(
+                    j => j.id_peer === mensaje.id_peer || (!j.conectado && j.nombre.toLowerCase() === mensaje.nombre.toLowerCase())
+                );
+
+                if (jugador_reconectado) {
+                    jugador_reconectado.id_peer = mensaje.id_peer;
+                    jugador_reconectado.conectado = true;
+                    jugador_reconectado.micro_activo = Boolean(mensaje.micro_activo);
+
+                    // Si estamos en partida, actualizamos su id_peer en el objeto Partida
+                    if (this.en_partida_online && partida_actual) {
+                        for (const jug_modelo of partida_actual.obtenerListaJugadores()) {
+                            if (jug_modelo.obtenerNombreJugador().toLowerCase() === jugador_reconectado.nombre.toLowerCase()) {
+                                jug_modelo.id_peer = mensaje.id_peer;
+                            }
+                        }
+                    }
+
+                    this.difundirListaJugadoresSala();
+                    actualizarVistaLobbyOnline();
+                    actualizarChipsVozEnJuego();
+                    actualizarInterfazCompleta();
+
+                    if (this.en_partida_online && partida_actual && cubilete_juego) {
+                        conn_remitente.send({
+                            tipo: "INICIAR_PARTIDA_ONLINE",
+                            estado: gestor_archivos_web.serializarEstadoCompleto(partida_actual, cubilete_juego),
+                            jugadores_sala: this.jugadores_sala
+                        });
+                    }
+                    return;
+                }
+
                 if (this.jugadores_sala.length >= Partida.MAXIMO_JUGADORES) {
                     conn_remitente.send({ tipo: "SALA_LLENA" });
                     return;
                 }
-                const ya_existe = this.jugadores_sala.find(j => j.id_peer === mensaje.id_peer);
-                if (!ya_existe) {
-                    let nombre_final = mensaje.nombre;
-                    const nombres_actuales = this.jugadores_sala.map(j => j.nombre.toLowerCase());
-                    if (nombres_actuales.includes(nombre_final.toLowerCase())) {
-                        nombre_final = nombre_final + " (" + (this.jugadores_sala.length + 1) + ")";
-                    }
-                    this.jugadores_sala.push({
-                        id_peer: mensaje.id_peer,
-                        nombre: nombre_final,
-                        es_host: false,
-                        micro_activo: Boolean(mensaje.micro_activo),
-                        hablando: false
-                    });
+
+                let nombre_final = mensaje.nombre;
+                const nombres_actuales = this.jugadores_sala.map(j => j.nombre.toLowerCase());
+                if (nombres_actuales.includes(nombre_final.toLowerCase())) {
+                    nombre_final = nombre_final + " (" + (this.jugadores_sala.length + 1) + ")";
                 }
+
+                this.jugadores_sala.push({
+                    id_peer: mensaje.id_peer,
+                    nombre: nombre_final,
+                    es_host: false,
+                    micro_activo: Boolean(mensaje.micro_activo),
+                    hablando: false,
+                    conectado: true
+                });
+
                 this.difundirListaJugadoresSala();
                 actualizarVistaLobbyOnline();
 
-                // Si la partida ya estaba en curso, le sincronizamos el tablero actual
+                // Si la partida ya estaba en curso y entra alguien nuevo, le sincronizamos el tablero
                 if (this.en_partida_online && partida_actual && cubilete_juego) {
                     conn_remitente.send({
                         tipo: "INICIAR_PARTIDA_ONLINE",
@@ -351,6 +402,55 @@ class GestorRedYVoz {
         }
     }
 
+    // Metodo para que el Anfitrion expulse a un jugador desconectado o que no tira
+    expulsarJugadorDePartida(id_peer_a_expulsar) {
+        if (!this.es_anfitrion || !partida_actual) return;
+
+        const idx_sala = this.jugadores_sala.findIndex(j => j.id_peer === id_peer_a_expulsar);
+        if (idx_sala === -1) return;
+
+        const jugador_a_quitar = this.jugadores_sala[idx_sala];
+        this.jugadores_sala.splice(idx_sala, 1);
+
+        // Removerlo de la lista de jugadores de la partida activa
+        const lista_partida = partida_actual.obtenerListaJugadores();
+        const idx_modelo = lista_partida.findIndex(j => j.id_peer === id_peer_a_expulsar);
+
+        if (idx_modelo !== -1) {
+            const era_su_turno = (partida_actual.obtenerIndiceTurnoActual() === idx_modelo);
+            lista_partida.splice(idx_modelo, 1);
+
+            // Si quedan menos de 2 jugadores, terminar la partida
+            if (lista_partida.length < 2) {
+                partida_actual.establecerPartidaTerminada(true);
+            } else if (era_su_turno) {
+                // Ajustar turno al siguiente jugador si era el turno del expulsado
+                if (partida_actual.indice_turno_actual >= lista_partida.length) {
+                    partida_actual.indice_turno_actual = 0;
+                }
+                cubilete_juego.reiniciarParaNuevoTurno();
+            } else if (partida_actual.indice_turno_actual > idx_modelo) {
+                partida_actual.indice_turno_actual--;
+            }
+        }
+
+        // Cortar conexion si seguia abierta
+        const conn = this.conexiones_clientes.get(id_peer_a_expulsar);
+        if (conn) {
+            try {
+                conn.close();
+            } catch (e) {
+            }
+            this.conexiones_clientes.delete(id_peer_a_expulsar);
+        }
+        this.eliminarAudioRemoto(id_peer_a_expulsar);
+
+        // Sincronizar a todos los demas jugadores
+        this.difundirListaJugadoresSala();
+        sincronizarYActualizarHost(false);
+        mostrarAvisoModal("Jugador expulsado", `Se expulsó a ${jugador_a_quitar.nombre} de la partida.`);
+    }
+
     // Procesa mensajes que llegan a un Invitado desde el Anfitrion
     procesarMensajeEnCliente(mensaje) {
         if (!mensaje || !mensaje.tipo) return;
@@ -361,7 +461,6 @@ class GestorRedYVoz {
                 this.modo_sala = mensaje.modo_sala || "ALALAY";
                 actualizarVistaLobbyOnline();
                 actualizarChipsVozEnJuego();
-                // Si el cliente tiene el microfono prendido, asegura llamada con nuevos integrantes
                 if (this.microfono_activo && this.stream_microfono_local) {
                     this.llamarATodosLosDemasConMiVoz();
                 }
@@ -434,7 +533,6 @@ class GestorRedYVoz {
     configurarRecepcionLlamadasVoz() {
         if (!this.peer_actual) return;
         this.peer_actual.on("call", (llamada_entrante) => {
-            // Contesta con nuestro stream si tenemos mic activo, o sin stream para escuchar
             if (this.stream_microfono_local) {
                 llamada_entrante.answer(this.stream_microfono_local);
             } else {
@@ -492,7 +590,7 @@ class GestorRedYVoz {
     llamarATodosLosDemasConMiVoz() {
         if (!this.peer_actual || !this.stream_microfono_local) return;
         for (const jugador of this.jugadores_sala) {
-            if (jugador.id_peer && jugador.id_peer !== this.mi_id_peer) {
+            if (jugador.id_peer && jugador.id_peer !== this.mi_id_peer && jugador.conectado !== false) {
                 const llamada_previa = this.llamadas_audio.get(jugador.id_peer);
                 if (!llamada_previa || !llamada_previa.open) {
                     const nueva_llamada = this.peer_actual.call(jugador.id_peer, this.stream_microfono_local);

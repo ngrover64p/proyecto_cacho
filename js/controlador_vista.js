@@ -235,6 +235,12 @@ function actualizarVistaLobbyOnline() {
     }
 }
 
+function confirmarExpulsionJugador(id_peer, nombre_jugador) {
+    if (confirm(`¿Expulsar a ${nombre_jugador} de la partida para que el turno avance?`)) {
+        gestor_red_voz.expulsarJugadorDePartida(id_peer);
+    }
+}
+
 function accionCopiarEnlaceInvitacion() {
     const link = gestor_red_voz.obtenerEnlaceInvitacion();
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -346,9 +352,30 @@ function actualizarChipsVozEnJuego() {
 
     for (const j of gestor_red_voz.jugadores_sala) {
         const chip = document.createElement("div");
-        chip.className = "chip_jugador_voz" + (j.hablando ? " hablando" : "");
-        const icono = j.micro_activo ? "🎤" : "🔇";
-        chip.textContent = `${icono} ${j.nombre}`;
+        const esta_conectado = (j.conectado !== false);
+        chip.className = "chip_jugador_voz" 
+            + (j.hablando ? " hablando" : "") 
+            + (!esta_conectado ? " desconectado" : "");
+
+        const icono = !esta_conectado ? "⚠️" : (j.micro_activo ? "🎤" : "🔇");
+        const estado_txt = !esta_conectado ? " (Desconectado)" : "";
+        chip.innerHTML = `<span>${icono} ${j.nombre}${estado_txt}</span>`;
+
+        // Si es el anfitrión y el jugador se desconectó, mostrar botón rápido para expulsar
+        if (gestor_red_voz.es_anfitrion && !esta_conectado && !j.es_host) {
+            const btn_exp = document.createElement("button");
+            btn_exp.className = "btn_expulsar_chip";
+            btn_exp.title = "Expulsar jugador de la partida";
+            btn_exp.textContent = "✕ Expulsar";
+            btn_exp.onclick = (e) => {
+                e.stopPropagation();
+                if (confirm(`¿Deseas expulsar a ${j.nombre} para continuar la partida sin él?`)) {
+                    gestor_red_voz.expulsarJugadorDePartida(j.id_peer);
+                }
+            };
+            chip.appendChild(btn_exp);
+        }
+
         contenedor_chips.appendChild(chip);
     }
 }
@@ -706,7 +733,19 @@ function actualizarInterfazCompleta() {
     const aviso_remoto = document.getElementById("aviso_turno_remoto");
     if (es_partida_online && !esMiTurnoDeJugar() && !partida_actual.estaPartidaTerminada()) {
         aviso_remoto.classList.remove("oculto");
-        document.getElementById("nombre_jugador_remoto").textContent = jug.obtenerNombreJugador();
+        const jugador_turno_obj = gestor_red_voz.jugadores_sala.find(
+            j => j.nombre.toLowerCase() === jug.obtenerNombreJugador().toLowerCase()
+        );
+        const esta_conectado = jugador_turno_obj ? (jugador_turno_obj.conectado !== false) : true;
+
+        if (!esta_conectado) {
+            aviso_remoto.innerHTML = `⚠️ <span id="nombre_jugador_remoto">${jug.obtenerNombreJugador()}</span> se desconectó. ` 
+                + (gestor_red_voz.es_anfitrion 
+                    ? `<button class="btn_expulsar_aviso" onclick="confirmarExpulsionJugador('${jugador_turno_obj.id_peer}', '${jug.obtenerNombreJugador()}')">Expulsar para continuar</button>` 
+                    : `Esperando a que regrese...`);
+        } else {
+            aviso_remoto.innerHTML = `Esperando jugada de <span id="nombre_jugador_remoto">${jug.obtenerNombreJugador()}</span>...`;
+        }
     } else {
         aviso_remoto.classList.add("oculto");
     }
