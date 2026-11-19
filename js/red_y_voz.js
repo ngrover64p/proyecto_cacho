@@ -3,6 +3,31 @@
 class GestorRedYVoz {
     static PREFIJO_PEER_SALA = "cacho-bolivia-sala-";
 
+    // Configuracion de STUN y TURN de alta disponibilidad (Metered Open Relay)
+    // Permite conectar datos y voz atravesando cualquier router, firewall o datos moviles 4G/5G
+    static CONFIGURACION_ICE = {
+        iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+            { urls: "stun:openrelay.metered.ca:80" },
+            {
+                urls: "turn:openrelay.metered.ca:80",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            },
+            {
+                urls: "turn:openrelay.metered.ca:443",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            },
+            {
+                urls: "turn:openrelay.metered.ca:443?transport=tcp",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            }
+        ]
+    };
+
     constructor() {
         this.peer_actual = null;
         this.mi_id_peer = null;
@@ -26,6 +51,24 @@ class GestorRedYVoz {
         this.llamadas_audio = new Map();
         this.elementos_audio_remoto = new Map();
         this.intervalo_detector_voz = null;
+        this.intervalo_heartbeat = null;
+
+        // Manejo de cambio de pestana / cuando el usuario minimiza el navegador para compartir por WhatsApp
+        this.configurarManejoVisibilidadMovil();
+    }
+
+    configurarManejoVisibilidadMovil() {
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") {
+                if (this.peer_actual && this.peer_actual.disconnected && !this.peer_actual.destroyed) {
+                    console.log("Recuperando conexion tras volver a la pestana...");
+                    try {
+                        this.peer_actual.reconnect();
+                    } catch (e) {
+                    }
+                }
+            }
+        });
     }
 
     // Metodo para generar un codigo corto de 5 caracteres faciles de leer
@@ -54,14 +97,8 @@ class GestorRedYVoz {
         const id_completo_host = GestorRedYVoz.PREFIJO_PEER_SALA + this.codigo_sala;
 
         const opciones_peer = {
-            config: {
-                iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" },
-                    { urls: "stun:stun1.l.google.com:19302" },
-                    { urls: "stun:stun2.l.google.com:19302" },
-                    { urls: "stun:global.stun.twilio.com:3478" }
-                ]
-            }
+            config: GestorRedYVoz.CONFIGURACION_ICE,
+            debug: 1
         };
 
         try {
@@ -70,6 +107,8 @@ class GestorRedYVoz {
             if (callback_error) callback_error("No se pudo cargar el servicio PeerJS.");
             return;
         }
+
+        this.iniciarHeartbeatConexion();
 
         this.peer_actual.on("open", (id_asignado) => {
             this.mi_id_peer = id_asignado;
@@ -89,13 +128,26 @@ class GestorRedYVoz {
             this.configurarConexionEntranteEnHost(conexion_entrante);
         });
 
+        this.peer_actual.on("disconnected", () => {
+            console.warn("Anfitrión desconectado del servidor central, reconectando...");
+            if (this.peer_actual && !this.peer_actual.destroyed) {
+                this.peer_actual.reconnect();
+            }
+        });
+
         this.peer_actual.on("error", (error_peer) => {
             console.error("Error en Peer Host:", error_peer);
             if (error_peer.type === "unavailable-id") {
                 this.crearSalaComoAnfitrion(nombre_jugador, modo_seleccionado, callback_exito, callback_error);
                 return;
             }
-            if (callback_error) callback_error("Error de red P2P: " + (error_peer.message || error_peer.type));
+            if (error_peer.type === "disconnected" || error_peer.type === "network") {
+                if (this.peer_actual && !this.peer_actual.destroyed) {
+                    this.peer_actual.reconnect();
+                }
+                return;
+            }
+            if (callback_error) callback_error("Aviso de red: " + (error_peer.message || error_peer.type));
         });
     }
 
@@ -114,14 +166,8 @@ class GestorRedYVoz {
         const id_host_destino = GestorRedYVoz.PREFIJO_PEER_SALA + this.codigo_sala;
 
         const opciones_peer = {
-            config: {
-                iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" },
-                    { urls: "stun:stun1.l.google.com:19302" },
-                    { urls: "stun:stun2.l.google.com:19302" },
-                    { urls: "stun:global.stun.twilio.com:3478" }
-                ]
-            }
+            config: GestorRedYVoz.CONFIGURACION_ICE,
+            debug: 1
         };
 
         try {
@@ -131,14 +177,50 @@ class GestorRedYVoz {
             return;
         }
 
+        this.iniciarHeartbeatConexion();
+
         this.peer_actual.on("open", (mi_id) => {
             this.mi_id_peer = mi_id;
             this.configurarRecepcionLlamadasVoz();
 
-            const conn = this.peer_actual.connect(id_host_destino, { reliable: true });
-            this.conexion_al_host = conn;
+            this.conectarConHostDestino(id_host_destino, callback_exito, callback_error);
+        });
 
-            const enviarSolicitud = () => {
+        this.peer_actual.on("disconnected", () => {
+            console.warn("Invitado desconectado del servidor, reconectando...");
+            if (this.peer_actual && !this.peer_actual.destroyed) {
+                this.peer_actual.reconnect();
+            }
+        });
+
+        this.peer_actual.on("error", (error_peer) => {
+            console.error("Error en Peer Invitado:", error_peer);
+            if (error_peer.type === "peer-unavailable") {
+                if (callback_error) {
+                    callback_error("No se encontró la sala '" + this.codigo_sala + "'. Asegúrate de que el anfitrión tenga su pantalla en el juego.");
+                }
+                return;
+            }
+            if (error_peer.type === "disconnected" || error_peer.type === "network") {
+                if (this.peer_actual && !this.peer_actual.destroyed) {
+                    this.peer_actual.reconnect();
+                }
+                return;
+            }
+            if (callback_error) {
+                callback_error("Aviso de conexión: " + (error_peer.message || error_peer.type));
+            }
+        });
+    }
+
+    conectarConHostDestino(id_host_destino, callback_exito, callback_error) {
+        const conn = this.peer_actual.connect(id_host_destino, {
+            reliable: true
+        });
+        this.conexion_al_host = conn;
+
+        const enviarSolicitud = () => {
+            if (conn && conn.open) {
                 try {
                     conn.send({
                         tipo: "SOLICITUD_UNIRSE",
@@ -147,37 +229,44 @@ class GestorRedYVoz {
                         micro_activo: this.microfono_activo
                     });
                 } catch (e) {
-                    console.error("Error al enviar solicitud:", e);
                 }
-            };
+            }
+        };
 
-            conn.on("open", () => {
-                enviarSolicitud();
-                // Enviar un respaldo a los 500ms por si el host aun estaba inicializando el canal
-                setTimeout(enviarSolicitud, 500);
-                if (callback_exito) callback_exito(this.codigo_sala, this.obtenerEnlaceInvitacion());
-            });
-
-            conn.on("data", (mensaje) => {
-                this.procesarMensajeEnCliente(mensaje);
-            });
-
-            conn.on("close", () => {
-                mostrarAvisoModal("Conexión finalizada", "El anfitrión cerró la sala o se perdió la conexión.");
-                accionSalirSalaOnline();
-            });
-
-            conn.on("error", (err_conn) => {
-                console.error("Error en conexión de datos:", err_conn);
-            });
+        conn.on("open", () => {
+            enviarSolicitud();
+            setTimeout(enviarSolicitud, 800);
+            setTimeout(enviarSolicitud, 1800);
+            if (callback_exito) callback_exito(this.codigo_sala, this.obtenerEnlaceInvitacion());
         });
 
-        this.peer_actual.on("error", (error_peer) => {
-            console.error("Error en Peer Invitado:", error_peer);
+        conn.on("data", (mensaje) => {
+            this.procesarMensajeEnCliente(mensaje);
+        });
+
+        conn.on("close", () => {
+            mostrarAvisoModal("Conexión finalizada", "El anfitrión cerró la sala o se perdió la conexión.");
+            accionSalirSalaOnline();
+        });
+
+        conn.on("error", (err_conn) => {
+            console.error("Error en conexión de datos:", err_conn);
             if (callback_error) {
-                callback_error("No se encontró la sala '" + this.codigo_sala + "' o el anfitrión no está conectado.");
+                callback_error("No se pudo conectar directamente con el anfitrión. Intenta de nuevo.");
             }
         });
+    }
+
+    iniciarHeartbeatConexion() {
+        if (this.intervalo_heartbeat) clearInterval(this.intervalo_heartbeat);
+        this.intervalo_heartbeat = setInterval(() => {
+            if (this.peer_actual && this.peer_actual.disconnected && !this.peer_actual.destroyed) {
+                try {
+                    this.peer_actual.reconnect();
+                } catch (e) {
+                }
+            }
+        }, 3000);
     }
 
     // Configura los eventos de datos para cada amigo que se conecta al Anfitrion
@@ -512,6 +601,10 @@ class GestorRedYVoz {
     }
 
     cerrarConexionesActuales() {
+        if (this.intervalo_heartbeat) {
+            clearInterval(this.intervalo_heartbeat);
+            this.intervalo_heartbeat = null;
+        }
         if (this.intervalo_detector_voz) {
             clearInterval(this.intervalo_detector_voz);
             this.intervalo_detector_voz = null;
