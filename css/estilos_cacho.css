@@ -1,0 +1,937 @@
+/* Estilos principales del Juego de Cacho Boliviano (PC y Celular) */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: #eef2f7;
+    color: #142d5c;
+    min-height: 100vh;
+}
+
+.oculto {
+    display: none !important;
+}
+
+/* ==================== MENU PRINCIPAL ==================== */
+
+#pantalla_menu {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px 14px;
+    min-height: 100vh;
+}
+
+.contenedor_menu {
+    width: 100%;
+    max-width: 580px;
+    background-color: #f0f4f8;
+    border-radius: 12px;
+    padding: 20px 22px;
+    box-shadow: 0 8px 24px rgba(20, 45, 92, 0.14);
+    border: 1px solid #d0dae5;
+}
+
+.titulo_principal {
+    text-align: center;
+    font-size: 32px;
+    font-weight: 800;
+    color: #143c6e;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+}
+
+.selector_tipo_juego {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.boton_tab {
+    padding: 10px 8px;
+    border-radius: 8px;
+    border: 2px solid #b8c7d9;
+    background-color: #ffffff;
+    color: #2c4365;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.boton_tab.activo {
+    background-color: #142d5c;
+    color: #ffe650;
+    border-color: #142d5c;
+}
+
+.caja_blanca {
+    background-color: #ffffff;
+    border: 1px solid #c5d1e0;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+
+.titulo_caja {
+    font-size: 13px;
+    font-weight: 700;
+    color: #19376d;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #e6edf5;
+    padding-bottom: 4px;
+}
+
+.fila_campo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.fila_campo label {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 65px;
+    color: #1f3352;
+}
+
+.campo_texto,
+.selector_modo {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 14px;
+    border: 1px solid #a8b9ce;
+    border-radius: 6px;
+    background-color: #fbfdff;
+    color: #10203a;
+}
+
+.selector_modo {
+    font-weight: 700;
+}
+
+.boton_accion {
+    width: 100%;
+    padding: 11px 14px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #ffffff;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: filter 0.15s;
+}
+
+.boton_accion:hover {
+    filter: brightness(1.06);
+}
+
+.boton_accion:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.boton_verde {
+    background-color: #228b22;
+}
+
+.boton_azul {
+    background-color: #1e64b4;
+}
+
+.boton_gris {
+    background-color: #5a6978;
+}
+
+.separador_o {
+    text-align: center;
+    margin: 12px 0;
+    font-size: 12px;
+    color: #6b7d93;
+    position: relative;
+}
+
+.fila_unirse_codigo {
+    display: flex;
+    gap: 8px;
+}
+
+.campo_codigo {
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-align: center;
+    max-width: 165px;
+}
+
+/* ==================== SALA DE ESPERA ONLINE (LOBBY) ==================== */
+
+.cabecera_sala {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.badge_sala {
+    background-color: #142d5c;
+    color: #ffffff;
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.codigo_destacado {
+    background-color: #fff3b0;
+    color: #142d5c;
+    border: 2px solid #d4af37;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 2px;
+}
+
+.caja_enlace_invitacion {
+    background-color: #f4f8ff;
+    border: 1px dashed #3b76c4;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 12px;
+}
+
+.texto_ayuda_enlace {
+    font-size: 12px;
+    color: #234b91;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.fila_copiar_enlace {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.boton_copiar,
+.boton_whatsapp {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.boton_copiar {
+    background-color: #2980b9;
+}
+
+.boton_whatsapp {
+    background-color: #25d366;
+}
+
+.aviso_exito {
+    color: #1b7e3c;
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 6px;
+}
+
+.barra_voz_lobby {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background-color: #142d5c;
+    padding: 8px 12px;
+    border-radius: 7px;
+    margin-bottom: 12px;
+}
+
+.texto_estado_voz {
+    color: #cfe0ff;
+    font-size: 11px;
+}
+
+.subtitulo_lista {
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: #142d5c;
+}
+
+.lista_lobby {
+    list-style: none;
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #d8e2ee;
+    border-radius: 6px;
+    padding: 6px;
+    margin-bottom: 12px;
+    background-color: #fafcff;
+}
+
+.lista_lobby li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid #eef2f7;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.lista_lobby li:last-child {
+    border-bottom: none;
+}
+
+.acciones_lobby {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.texto_esperando {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #d35400;
+    padding: 6px;
+}
+
+/* ==================== JUGADORES LOCALES ==================== */
+
+.lista_campos_jugadores {
+    max-height: 165px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.fila_botones_jugadores {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.boton_pequeno {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid #9ab0c7;
+    border-radius: 6px;
+    background-color: #eef3f9;
+    color: #142d5c;
+    cursor: pointer;
+}
+
+.boton_pequeno:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.etiqueta_checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.botones_principales_menu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pie_acciones_extra {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+/* ==================== PANTALLA DE JUEGO ==================== */
+
+#pantalla_juego {
+    min-height: 100vh;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: center;
+}
+
+.contenedor_juego {
+    width: 100%;
+    max-width: 1120px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Barra superior azul marino igual a VentanaJuego.java */
+.panel_superior_turno {
+    background-color: #142d5c;
+    padding: 10px 14px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.grupo_info_turno {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.etiqueta_turno {
+    background-color: #234b91;
+    color: #ffe650;
+    font-size: 20px;
+    font-weight: 800;
+    padding: 5px 14px;
+    border: 2px solid #ffd700;
+    border-radius: 4px;
+}
+
+.etiqueta_tiros {
+    background-color: #2d5fa5;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 7px 12px;
+    border-radius: 4px;
+}
+
+.etiqueta_modo {
+    background-color: #1b3b73;
+    color: #a9c6ff;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 5px 9px;
+    border-radius: 4px;
+    border: 1px solid #3c65ab;
+}
+
+/* Botones de Voz tipo Meet */
+.grupo_controles_voz {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.chips_voz {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.chip_jugador_voz {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background-color: #234b91;
+    color: #e2ecff;
+    border: 1px solid #4873bd;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.chip_jugador_voz.hablando {
+    background-color: #1b8a44;
+    color: #ffffff;
+    border-color: #55ff90;
+    box-shadow: 0 0 8px rgba(85, 255, 144, 0.7);
+}
+
+.boton_voz {
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: none;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    color: #ffffff;
+}
+
+.boton_voz.micro_apagado {
+    background-color: #c0392b;
+}
+
+.boton_voz.micro_encendido {
+    background-color: #27ae60;
+    box-shadow: 0 0 8px rgba(39, 174, 96, 0.6);
+}
+
+.boton_voz.altavoz_activo {
+    background-color: #2980b9;
+}
+
+.boton_voz.altavoz_silenciado {
+    background-color: #7f8c8d;
+}
+
+/* ==================== PANEL CENTRAL (MESA + LIBRETA) ==================== */
+
+.panel_central_juego {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 12px;
+}
+
+/* Mesa de dados verde con borde dorado */
+.panel_mesa_dados {
+    background-color: #1b5e34;
+    border: 2px solid #d4af37;
+    border-radius: 8px;
+    padding: 10px 12px 14px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+}
+
+.titulo_borde_mesa {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.mesa_verde_dados {
+    position: relative;
+    padding: 12px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 190px;
+    overflow: hidden;
+}
+
+.fila_cinco_dados {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    width: 100%;
+    z-index: 1;
+}
+
+.columna_dado {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.canvas_dado {
+    width: 86px;
+    height: 86px;
+    cursor: pointer;
+}
+
+.acciones_dado {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    max-width: 92px;
+}
+
+.btn_conservar,
+.btn_voltear {
+    padding: 5px 4px;
+    font-size: 11px;
+    border-radius: 4px;
+    border: 1px solid #34495e;
+    cursor: pointer;
+}
+
+.btn_conservar {
+    background-color: #ecf0f1;
+    color: #000000;
+    font-weight: 600;
+}
+
+.btn_conservar.bloqueado {
+    background-color: #e74c3c;
+    color: #ffffff;
+    font-weight: 700;
+    border-color: #922b21;
+}
+
+.btn_voltear {
+    background-color: #ffcc66;
+    color: #1a1a1a;
+    font-weight: 700;
+}
+
+.btn_conservar:disabled,
+.btn_voltear:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.canvas_cubilete {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.panel_boton_lanzar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.boton_lanzar {
+    width: 280px;
+    max-width: 100%;
+    height: 45px;
+    background-color: #e67e22;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 800;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+
+.boton_lanzar:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.aviso_remoto {
+    color: #ffe650;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* Libreta Panza de Oro */
+.panel_libreta {
+    background-color: #ffffff;
+    border: 2px solid #19376d;
+    border-radius: 8px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.titulo_borde_libreta {
+    color: #19376d;
+    font-size: 13px;
+    font-weight: 800;
+    margin-bottom: 8px;
+}
+
+.cuadricula_panza_oro {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 6px;
+    min-height: 250px;
+}
+
+.btn_categoria {
+    border: 1px solid #a0afc3;
+    border-radius: 5px;
+    padding: 6px 4px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    line-height: 1.25;
+    background-color: #f5f8ff;
+    color: #19376d;
+}
+
+.btn_categoria:disabled {
+    cursor: not-allowed;
+}
+
+.btn_categoria.estado_usada {
+    background-color: #bcc8d6;
+    color: #0f1928;
+}
+
+.btn_categoria.estado_positivo {
+    background-color: #d1f2d9;
+    color: #14642d;
+    border-color: #58b873;
+}
+
+.btn_categoria.estado_cero {
+    background-color: #fdedec;
+    color: #8c2828;
+    border-color: #e09b97;
+}
+
+/* ==================== PANEL INFERIOR (RANKING + TABLERO) ==================== */
+
+.panel_inferior_juego {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.panel_dos_tablas {
+    display: grid;
+    grid-template-columns: 215px 1fr;
+    gap: 10px;
+}
+
+.caja_ranking {
+    background-color: #ffffff;
+    border: 2px solid #19376d;
+    border-radius: 6px;
+    padding: 6px 8px;
+    max-height: 165px;
+    display: flex;
+    flex-direction: column;
+}
+
+.titulo_ranking {
+    font-size: 14px;
+    font-weight: 800;
+    color: #142d5c;
+    border-bottom: 2px solid #142d5c;
+    padding-bottom: 3px;
+    margin-bottom: 4px;
+}
+
+.caja_tablero {
+    background-color: #ffffff;
+    border: 1px solid #b5c4d6;
+    border-radius: 6px;
+    padding: 6px 8px;
+    max-height: 165px;
+    display: flex;
+    flex-direction: column;
+}
+
+.titulo_tablero {
+    font-size: 12px;
+    font-weight: 700;
+    color: #142d5c;
+    margin-bottom: 4px;
+}
+
+.scroll_tabla {
+    overflow: auto;
+    flex: 1;
+}
+
+.tabla_compacta,
+.tabla_resumen {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.tabla_compacta td {
+    padding: 4px 6px;
+    border-bottom: 1px solid #dce1e6;
+}
+
+.tabla_resumen th,
+.tabla_resumen td {
+    padding: 4px 6px;
+    border: 1px solid #dce1e6;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.tabla_resumen th {
+    background-color: #eef3f9;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.fila_turno_activo td {
+    background-color: #fff3b0 !important;
+    color: #0f2850 !important;
+    font-weight: 800 !important;
+}
+
+.barra_botones_inferior {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn_inferior {
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 5px;
+    border: 1px solid #8ea2b8;
+    cursor: pointer;
+}
+
+.btn_invitar {
+    background-color: #27ae60;
+    color: #ffffff;
+    border: none;
+}
+
+.btn_help {
+    background-color: #f39c12;
+    color: #ffffff;
+    border: none;
+}
+
+.btn_guardar {
+    background-color: #2980b9;
+    color: #ffffff;
+    border: none;
+}
+
+.btn_volver {
+    background-color: #e4eaf1;
+    color: #142d5c;
+}
+
+/* ==================== VENTANAS MODALES ==================== */
+
+.fondo_modal {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(10, 24, 48, 0.62);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 14px;
+    z-index: 1000;
+}
+
+.ventana_modal {
+    background-color: #ffffff;
+    width: 100%;
+    max-width: 560px;
+    border-radius: 10px;
+    border: 2px solid #142d5c;
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.cabecera_modal {
+    background-color: #142d5c;
+    color: #ffffff;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.boton_cerrar_modal {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.cuerpo_modal {
+    padding: 14px 16px;
+    max-height: 68vh;
+    overflow-y: auto;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.cuerpo_modal ul {
+    padding-left: 18px;
+    margin-bottom: 10px;
+}
+
+.pie_modal {
+    padding: 10px 14px;
+    background-color: #f2f5f9;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* ==================== ADAPTACION PARA CELULARES ==================== */
+
+@media (max-width: 880px) {
+    .panel_central_juego {
+        grid-template-columns: 1fr;
+    }
+
+    .panel_dos_tablas {
+        grid-template-columns: 1fr;
+    }
+
+    .etiqueta_turno {
+        font-size: 16px;
+        padding: 4px 10px;
+    }
+
+    .etiqueta_tiros {
+        font-size: 14px;
+        padding: 5px 10px;
+    }
+}
+
+@media (max-width: 520px) {
+    #pantalla_juego {
+        padding: 6px;
+    }
+
+    .fila_cinco_dados {
+        gap: 4px;
+    }
+
+    .canvas_dado {
+        width: 58px;
+        height: 58px;
+    }
+
+    .btn_conservar,
+    .btn_voltear {
+        font-size: 10px;
+        padding: 4px 2px;
+    }
+
+    .cuadricula_panza_oro {
+        min-height: 215px;
+    }
+
+    .btn_categoria {
+        font-size: 12px;
+    }
+}

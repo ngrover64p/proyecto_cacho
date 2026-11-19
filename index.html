@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CACHO - Local y Online</title>
+    <link rel="stylesheet" href="css/estilos_cacho.css">
+    <!-- Libreria PeerJS para conexion P2P Online y Audio WebRTC en GitHub Pages -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+    <!-- ==================== PANTALLA 1: MENU PRINCIPAL ==================== -->
+    <div id="pantalla_menu" class="pantalla_activa">
+        <div class="contenedor_menu">
+            <h1 class="titulo_principal">CACHO</h1>
+
+            <!-- Pestañas de tipo de partida: Online vs Local -->
+            <div class="selector_tipo_juego">
+                <button id="tab_modo_online" class="boton_tab activo" onclick="cambiarTabMenu('ONLINE')">
+                    🌐 Jugar Online
+                </button>
+                <button id="tab_modo_local" class="boton_tab" onclick="cambiarTabMenu('LOCAL')">
+                    🏠 Jugar
+                </button>
+            </div>
+
+            <!-- SECCION A: MODO ONLINE CON ENLACE -->
+            <div id="panel_config_online" class="seccion_menu">
+                <div class="caja_blanca">
+                    <h3 class="titulo_caja">Nombre del jugador</h3>
+                    <div class="fila_campo">
+                        <input type="text" id="input_nombre_online" class="campo_texto" placeholder="Escribe tu nombre..." maxlength="18" value="Jugador 1">
+                    </div>
+                </div>
+
+                <!-- Sub-bloque cuando entra normalmente a crear o unirse -->
+                <div id="subpanel_crear_o_unirse" class="caja_blanca">
+                    <h3 class="titulo_caja">2. Crear Sala o Entrar con Código</h3>
+                    <div class="fila_campo">
+                        <label for="combo_modo_online">Modo:</label>
+                        <select id="combo_modo_online" class="selector_modo">
+                            <option value="TIRO_VOLTEO">1. TIRO_VOLTEO (1 tiro y 1 volteo)</option>
+                            <option value="ALALAY" selected>2. ALALAY (2 tiros y 2 volteos)</option>
+                            <option value="TRIPLETE">3. TRIPLETE (3 tiros y 3 volteos)</option>
+                        </select>
+                    </div>
+                    <button class="boton_accion boton_verde" onclick="accionCrearSalaOnline()">
+                        ➕ CREAR SALA Y GENERAR ENLACE
+                    </button>
+
+                    <div class="separador_o"><span>o únete a la sala de un amigo</span></div>
+
+                    <div class="fila_unirse_codigo">
+                        <input type="text" id="input_codigo_sala" class="campo_texto campo_codigo" placeholder="Código (ej: C4CH0)" maxlength="10">
+                        <button class="boton_accion boton_azul" onclick="accionUnirseSalaOnline()">
+                            ENTRAR A SALA
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sub-bloque Sala de Espera (Lobby Online) -->
+                <div id="subpanel_sala_espera" class="caja_blanca oculto">
+                    <div class="cabecera_sala">
+                        <span id="etiqueta_rol_sala" class="badge_sala">SALA ONLINE</span>
+                        <span id="etiqueta_codigo_sala" class="codigo_destacado">----</span>
+                    </div>
+
+                    <div class="caja_enlace_invitacion">
+                        <p class="texto_ayuda_enlace">Comparte este enlace por WhatsApp para que entren directo:</p>
+                        <div class="fila_copiar_enlace">
+                            <input type="text" id="input_enlace_invitacion" class="campo_texto" readonly>
+                            <button class="boton_copiar" onclick="accionCopiarEnlaceInvitacion()">📋 Copiar Link</button>
+                            <button class="boton_whatsapp" onclick="accionCompartirWhatsApp()">📲 WhatsApp</button>
+                        </div>
+                        <p id="aviso_copiado" class="aviso_exito oculto">¡Enlace copiado al portapapeles!</p>
+                    </div>
+
+                    <!-- Controles de Audio tipo Meet desde la sala de espera -->
+                    <div class="barra_voz_lobby">
+                        <button id="boton_microfono_lobby" class="boton_voz micro_apagado" onclick="accionAlternarMicrofono()">
+                            🎤 Micrófono: OFF (Toca para hablar)
+                        </button>
+                        <span id="estado_voz_lobby" class="texto_estado_voz">Voz WebRTC lista</span>
+                    </div>
+
+                    <h4 class="subtitulo_lista">Jugadores conectados en la sala (<span id="contador_jugadores_sala">1</span>/10):</h4>
+                    <ul id="lista_jugadores_lobby" class="lista_lobby"></ul>
+
+                    <div class="acciones_lobby">
+                        <button id="boton_iniciar_online_host" class="boton_accion boton_verde" onclick="accionHostIniciarPartidaOnline()">
+                            ▶ EMPEZAR PARTIDA AHORA
+                        </button>
+                        <p id="mensaje_esperando_host" class="texto_esperando oculto">
+                            Esperando a que el anfitrión inicie la partida...
+                        </p>
+                        <button class="boton_accion boton_gris" onclick="accionSalirSalaOnline()">
+                            Salir de la Sala
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECCION B: MODO LOCAL / CONTRA IA (IGUAL A VENTANA MENU JAVA) -->
+            <div id="panel_config_local" class="seccion_menu oculto">
+                <div class="caja_blanca">
+                    <h3 class="titulo_caja">1. Seleccionar Modo de Juego</h3>
+                    <div class="fila_campo">
+                        <label for="combo_modo_local">Modo:</label>
+                        <select id="combo_modo_local" class="selector_modo">
+                            <option value="TIRO_VOLTEO">1. TIRO_VOLTEO (1 tiro y 1 volteo)</option>
+                            <option value="ALALAY" selected>2. ALALAY (2 tiros y 2 volteos)</option>
+                            <option value="TRIPLETE">3. TRIPLETE (3 tiros y 3 volteos)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="caja_blanca">
+                    <h3 class="titulo_caja">2. Jugadores</h3>
+                    <div id="contenedor_campos_jugadores" class="lista_campos_jugadores"></div>
+                    <div class="fila_botones_jugadores">
+                        <button id="boton_agregar_jugador" class="boton_pequeno" onclick="accionAgregarJugadorLocal()">+ Añadir Jugador</button>
+                        <button id="boton_quitar_jugador" class="boton_pequeno" onclick="accionQuitarJugadorLocal()" disabled>- Quitar Último</button>
+                    </div>
+                </div>
+
+                <div class="caja_blanca">
+                    <h3 class="titulo_caja">3. Jugar con la Computadora</h3>
+                    <label class="etiqueta_checkbox">
+                        <input type="checkbox" id="check_jugar_solo_ia" onchange="actualizarModoJugarSoloLocal()">
+                        <span>Jugar solo (contra IA)</span>
+                    </label>
+                </div>
+
+                <div class="botones_principales_menu">
+                    <button class="boton_accion boton_verde" onclick="iniciarNuevaPartidaLocal()">INICIAR PARTIDA</button>
+                    <button class="boton_accion boton_azul" onclick="abrirModalPartidasGuardadas()">RECUPERAR PARTIDA</button>
+                    <button class="boton_accion boton_gris" onclick="abrirModalGanadores()">LISTA DE GANADORES</button>
+                </div>
+            </div>
+
+            <!-- Boton acceso rapido a Historial de Ganadores desde cualquier pestaña -->
+            <div id="pie_menu_online" class="pie_acciones_extra">
+                <button class="boton_pequeno" onclick="abrirModalPartidasGuardadas()">📂 Partidas Guardadas</button>
+                <button class="boton_pequeno" onclick="abrirModalGanadores()">🏆 Lista de Ganadores</button>
+                <button class="boton_pequeno" onclick="mostrarVentanaHelp()">❓ Reglas (Help)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== PANTALLA 2: MESA DE JUEGO ==================== -->
+    <div id="pantalla_juego" class="oculto">
+        <div class="contenedor_juego">
+
+            <!-- BARRA SUPERIOR: TURNO, TIROS/VOLTEOS Y CONTROLES DE VOZ -->
+            <header class="panel_superior_turno">
+                <div class="grupo_info_turno">
+                    <div id="etiqueta_info_turno" class="etiqueta_turno">TURNO: -</div>
+                    <div id="etiqueta_info_tiros" class="etiqueta_tiros">Tiros: 0/2 | Volteos: 0/2</div>
+                    <div id="etiqueta_modo_activo" class="etiqueta_modo">ALALAY</div>
+                </div>
+
+                <!-- Controles de Audio tipo Meet integrados en la partida -->
+                <div id="panel_controles_voz_juego" class="grupo_controles_voz">
+                    <div id="chips_jugadores_voz" class="chips_voz"></div>
+                    <button id="boton_microfono_juego" class="boton_voz micro_apagado" onclick="accionAlternarMicrofono()">
+                        🎤 Mic: OFF
+                    </button>
+                    <button id="boton_altavoz_juego" class="boton_voz altavoz_activo" onclick="accionAlternarAltavoz()">
+                        🔊 Audio: ON
+                    </button>
+                </div>
+            </header>
+
+            <!-- PANEL CENTRAL: MESA DE DADOS (IZQUIERDA) + LIBRETA PANZA DE ORO (DERECHA) -->
+            <main class="panel_central_juego">
+
+                <!-- MESA DE DADOS CON CUBILETE ANIMADO -->
+                <section class="panel_mesa_dados">
+                    <div class="titulo_borde_mesa">Mesa de Dados</div>
+
+                    <div id="contenedor_mesa_cubilete" class="mesa_verde_dados">
+                        <div class="fila_cinco_dados">
+                            <!-- Se generan las 5 columnas de dados dinamicamente -->
+                            <div class="columna_dado" data-pos="0">
+                                <canvas id="canvas_dado_0" class="canvas_dado" width="90" height="90" onclick="accionToqueDirectoDado(0)"></canvas>
+                                <div class="acciones_dado">
+                                    <button id="btn_bloquear_0" class="btn_conservar" onclick="accionAlternarBloqueoDado(0)">Conservar</button>
+                                    <button id="btn_voltear_0" class="btn_voltear" onclick="accionVoltearDado(0)">Voltear</button>
+                                </div>
+                            </div>
+                            <div class="columna_dado" data-pos="1">
+                                <canvas id="canvas_dado_1" class="canvas_dado" width="90" height="90" onclick="accionToqueDirectoDado(1)"></canvas>
+                                <div class="acciones_dado">
+                                    <button id="btn_bloquear_1" class="btn_conservar" onclick="accionAlternarBloqueoDado(1)">Conservar</button>
+                                    <button id="btn_voltear_1" class="btn_voltear" onclick="accionVoltearDado(1)">Voltear</button>
+                                </div>
+                            </div>
+                            <div class="columna_dado" data-pos="2">
+                                <canvas id="canvas_dado_2" class="canvas_dado" width="90" height="90" onclick="accionToqueDirectoDado(2)"></canvas>
+                                <div class="acciones_dado">
+                                    <button id="btn_bloquear_2" class="btn_conservar" onclick="accionAlternarBloqueoDado(2)">Conservar</button>
+                                    <button id="btn_voltear_2" class="btn_voltear" onclick="accionVoltearDado(2)">Voltear</button>
+                                </div>
+                            </div>
+                            <div class="columna_dado" data-pos="3">
+                                <canvas id="canvas_dado_3" class="canvas_dado" width="90" height="90" onclick="accionToqueDirectoDado(3)"></canvas>
+                                <div class="acciones_dado">
+                                    <button id="btn_bloquear_3" class="btn_conservar" onclick="accionAlternarBloqueoDado(3)">Conservar</button>
+                                    <button id="btn_voltear_3" class="btn_voltear" onclick="accionVoltearDado(3)">Voltear</button>
+                                </div>
+                            </div>
+                            <div class="columna_dado" data-pos="4">
+                                <canvas id="canvas_dado_4" class="canvas_dado" width="90" height="90" onclick="accionToqueDirectoDado(4)"></canvas>
+                                <div class="acciones_dado">
+                                    <button id="btn_bloquear_4" class="btn_conservar" onclick="accionAlternarBloqueoDado(4)">Conservar</button>
+                                    <button id="btn_voltear_4" class="btn_voltear" onclick="accionVoltearDado(4)">Voltear</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Canvas superpuesto para dibujar el vaso de cuero inclinado (PanelMesaConCubilete) -->
+                        <canvas id="canvas_cubilete_animado" class="canvas_cubilete" width="620" height="190"></canvas>
+                    </div>
+
+                    <div class="panel_boton_lanzar">
+                        <button id="boton_lanzar_dados" class="boton_lanzar" onclick="accionLanzarDadosConAnimacion()">
+                            🎲 LANZAR DADOS
+                        </button>
+                        <div id="aviso_turno_remoto" class="aviso_remoto oculto">
+                            Esperando jugada de <span id="nombre_jugador_remoto">-</span>...
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LIBRETA DE ANOTACION (PANZA DE ORO 3x4) -->
+                <section class="panel_libreta">
+                    <div class="titulo_borde_libreta">Libreta de Anotación</div>
+                    <div id="cuadricula_libreta" class="cuadricula_panza_oro">
+                        <!-- Fila 1: Balas (0), Escalera (6), Cuadras (3) -->
+                        <button id="btn_cat_0" class="btn_categoria" onclick="accionAnotarEnCategoria(0)"></button>
+                        <button id="btn_cat_6" class="btn_categoria" onclick="accionAnotarEnCategoria(6)"></button>
+                        <button id="btn_cat_3" class="btn_categoria" onclick="accionAnotarEnCategoria(3)"></button>
+                        <!-- Fila 2: Tontos (1), Full (7), Quinas (4) -->
+                        <button id="btn_cat_1" class="btn_categoria" onclick="accionAnotarEnCategoria(1)"></button>
+                        <button id="btn_cat_7" class="btn_categoria" onclick="accionAnotarEnCategoria(7)"></button>
+                        <button id="btn_cat_4" class="btn_categoria" onclick="accionAnotarEnCategoria(4)"></button>
+                        <!-- Fila 3: Trenes (2), Poker (8), Senas (5) -->
+                        <button id="btn_cat_2" class="btn_categoria" onclick="accionAnotarEnCategoria(2)"></button>
+                        <button id="btn_cat_8" class="btn_categoria" onclick="accionAnotarEnCategoria(8)"></button>
+                        <button id="btn_cat_5" class="btn_categoria" onclick="accionAnotarEnCategoria(5)"></button>
+                        <!-- Fila 4: Vacio, Grande / Dormida (9), Vacio -->
+                        <div class="celda_vacia_libreta"></div>
+                        <button id="btn_cat_9" class="btn_categoria btn_grande" onclick="accionAnotarEnCategoria(9)"></button>
+                        <div class="celda_vacia_libreta"></div>
+                    </div>
+                </section>
+
+            </main>
+
+            <!-- PANEL INFERIOR: RANKING EN TIEMPO REAL + TABLERO RESUMEN + BOTONES -->
+            <footer class="panel_inferior_juego">
+                <div class="panel_dos_tablas">
+                    <!-- Cuadro RANKING a la izquierda -->
+                    <div class="caja_ranking">
+                        <div class="titulo_ranking">RANKING</div>
+                        <div class="scroll_tabla">
+                            <table class="tabla_compacta">
+                                <tbody id="cuerpo_tabla_ranking"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tablero detallado a la derecha -->
+                    <div class="caja_tablero">
+                        <div class="titulo_tablero">Tablero</div>
+                        <div class="scroll_tabla">
+                            <table class="tabla_resumen">
+                                <thead>
+                                    <tr>
+                                        <th>Jugador</th>
+                                        <th>Balas</th>
+                                        <th>Tontos</th>
+                                        <th>Trenes</th>
+                                        <th>Cuadras</th>
+                                        <th>Quinas</th>
+                                        <th>Senas</th>
+                                        <th>Escalera</th>
+                                        <th>Full</th>
+                                        <th>Poker</th>
+                                        <th>Grande</th>
+                                        <th>TOTAL</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cuerpo_tabla_resumen"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barra de botones inferior -->
+                <div class="barra_botones_inferior">
+                    <button id="boton_copiar_link_juego" class="btn_inferior btn_invitar oculto" onclick="accionCopiarEnlaceInvitacion()">
+                        🔗 Copiar Link Sala
+                    </button>
+                    <button class="btn_inferior btn_help" onclick="mostrarVentanaHelp()">Help</button>
+                    <button id="boton_guardar_partida" class="btn_inferior btn_guardar" onclick="accionGuardarPartida()">Guardar Partida</button>
+                    <button class="btn_inferior btn_volver" onclick="accionVolverAlMenu()">Volver al Menú</button>
+                </div>
+            </footer>
+
+        </div>
+    </div>
+
+    <!-- ==================== MODALES (HELP, PARTIDAS GUARDADAS, GANADORES, FIN) ==================== -->
+    <div id="fondo_modal" class="fondo_modal oculto" onclick="cerrarModalSiClickFondo(event)">
+        <div class="ventana_modal">
+            <div class="cabecera_modal">
+                <h3 id="titulo_modal">Aviso</h3>
+                <button class="boton_cerrar_modal" onclick="cerrarModal()">✕</button>
+            </div>
+            <div id="contenido_modal" class="cuerpo_modal"></div>
+            <div id="pie_modal" class="pie_modal">
+                <button class="boton_accion boton_azul" onclick="cerrarModal()">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor oculto para los elementos <audio> de las llamadas WebRTC -->
+    <div id="contenedor_audios_remotos" style="display:none;"></div>
+
+    <!-- Scripts modulares del proyecto -->
+    <script src="js/modelo_cacho.js"></script>
+    <script src="js/red_y_voz.js"></script>
+    <script src="js/controlador_vista.js"></script>
+</body>
+</html>
