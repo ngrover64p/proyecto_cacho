@@ -361,12 +361,12 @@ function actualizarChipsVozEnJuego() {
         const estado_txt = !esta_conectado ? " (Desconectado)" : "";
         chip.innerHTML = `<span>${icono} ${j.nombre}${estado_txt}</span>`;
 
-        // Si es el anfitrión y el jugador se desconectó, mostrar botón rápido para expulsar
-        if (gestor_red_voz.es_anfitrion && !esta_conectado && !j.es_host) {
+        // Si es el anfitrión, mostrar botón para expulsar (resaltado si se desconectó)
+        if (gestor_red_voz.es_anfitrion && !j.es_host) {
             const btn_exp = document.createElement("button");
             btn_exp.className = "btn_expulsar_chip";
             btn_exp.title = "Expulsar jugador de la partida";
-            btn_exp.textContent = "✕ Expulsar";
+            btn_exp.textContent = !esta_conectado ? "✕ Expulsar" : "✕";
             btn_exp.onclick = (e) => {
                 e.stopPropagation();
                 if (confirm(`¿Deseas expulsar a ${j.nombre} para continuar la partida sin él?`)) {
