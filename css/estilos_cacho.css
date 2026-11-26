@@ -1181,3 +1181,98 @@ body {
     border: none;
 }
 
+/* Fila de 4 botones compactos de la Sala de Espera */
+.fila_cuatro_botones_lobby {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.btn_compacto_lobby {
+    padding: 7px 6px;
+    min-height: 40px;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.15;
+    border-radius: 6px;
+    border: 1px solid #8ea4be;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    transition: all 0.15s ease;
+}
+
+.btn_compacto_lobby:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.btn_lobby_gris {
+    background-color: #6c7a89;
+    color: #ffffff;
+    border-color: #566370;
+}
+
+.btn_lobby_neutro {
+    background-color: #eef3f9;
+    color: #34495e;
+    border-color: #b0c2d6;
+}
+
+.btn_lobby_verde {
+    background-color: #27ae60;
+    color: #ffffff;
+    border-color: #1e8449;
+}
+
+.btn_lobby_espectador_on {
+    background-color: #8e44ad;
+    color: #ffffff;
+    border-color: #6c3483;
+}
+
+.btn_compacto_lobby.micro_apagado {
+    background-color: #c0392b;
+    color: #ffffff;
+    border-color: #922b21;
+}
+
+.btn_compacto_lobby.micro_encendido {
+    background-color: #27ae60;
+    color: #ffffff;
+    border-color: #1e8449;
+    box-shadow: 0 0 8px rgba(39, 174, 96, 0.55);
+}
+
+.badge_partida_en_curso {
+    background-color: #fff3b0;
+    color: #142d5c;
+    border: 1px solid #d4af37;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+/* Cuadrito del codigo de sala al lado de ALALAY en el cuadro azul */
+.etiqueta_codigo_mesa {
+    background-color: #fff3b0;
+    color: #142d5c;
+    font-size: 13px;
+    font-weight: 900;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 2px solid #d4af37;
+    letter-spacing: 1.5px;
+}
+
+.btn_finalizar_partida {
+    background-color: #c0392b;
+    color: #ffffff;
+    border: none;
+}
+
+

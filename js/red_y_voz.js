@@ -1,8 +1,7 @@
-// Gestor de Red Online via WebSockets (MQTT over WSS) + Migracion de Master estilo WolfTeam + Voz WebRTC
-// Incluye Worker anti-suspension (evita desconexion a los 3 min), Estado Retenido y Autoridad Instantanea (0-lag)
+// Gestor de Red Online via WebSockets (MQTT over WSS) + Migracion de Master en secuencia + Voz WebRTC
 
 class GestorRedYVoz {
-    static PREFIJO_TOPIC_SALA = "cacho_bolivia_v4/sala/";
+    static PREFIJO_TOPIC_SALA = "cacho_bolivia_v5/sala/";
 
     static LISTA_BROKERS_WSS = [
         "wss://broker.emqx.io:8084/mqtt",
@@ -23,11 +22,10 @@ class GestorRedYVoz {
         this.indice_broker_actual = 0;
         this.mi_id_peer = this.obtenerOCrearMiIdUnico();
         this.mi_nombre = "Jugador 1";
-        this.mi_alias = "#BO1";
         this.mis_stats = { ganadas: 0, perdidas: 0, dormidas: 0, jugadas: 0 };
 
         this.es_anfitrion = false;
-        this.mi_listo = true;
+        this.mi_listo = false;
         this.mi_espectador = false;
         this.codigo_sala = "";
         this.modo_sala = "ALALAY";
@@ -35,10 +33,9 @@ class GestorRedYVoz {
         this.unido_confirmado = false;
 
         // Lista de usuarios en la sala:
-        // [{ id_peer, nombre, alias, stats, es_host, listo, espectador, micro_activo, hablando, conectado, orden_ingreso, ultimo_latido }]
+        // [{ id_peer, nombre, stats, es_host, listo, espectador, micro_activo, hablando, conectado, orden_ingreso, ultimo_latido }]
         this.jugadores_sala = [];
 
-        // Worker en segundo plano que los navegadores NO congelan tras 3 minutos de inactividad
         this.worker_latido = null;
         this.intervalo_reintento_unirse = null;
 
@@ -64,7 +61,6 @@ class GestorRedYVoz {
         if (typeof gestor_archivos_web !== "undefined") {
             const p = gestor_archivos_web.obtenerPerfilUsuario();
             this.mi_nombre = p.nombre || "Jugador 1";
-            this.mi_alias = p.alias || "#BO1";
             this.mis_stats = {
                 ganadas: p.ganadas || 0,
                 perdidas: p.perdidas || 0,
@@ -74,7 +70,6 @@ class GestorRedYVoz {
         }
     }
 
-    // Worker anti-throttling: mantiene el WebSocket activo aunque la laptop lleve 10+ minutos sin tocarse
     iniciarWorkerAntisuspension() {
         this.detenerWorkerAntisuspension();
         try {
@@ -106,7 +101,6 @@ class GestorRedYVoz {
         }
     }
 
-    // Ciclo que se ejecuta cada 3 segundos sin importar si la pestana esta en segundo plano
     ejecutarCicloMantenimientoSala() {
         if (!this.cliente_mqtt || !this.codigo_sala) return;
 
@@ -118,12 +112,10 @@ class GestorRedYVoz {
             return;
         }
 
-        // 1. Enviar mi latido de presencia a toda la sala
         this.publicarMensajeSala("eventos", {
             tipo: "LATIDO_PRESENCIA",
             id_peer: this.mi_id_peer,
             nombre: this.mi_nombre,
-            alias: this.mi_alias,
             stats: this.mis_stats,
             es_host: this.es_anfitrion,
             listo: this.mi_listo,
@@ -131,7 +123,6 @@ class GestorRedYVoz {
             micro_activo: this.microfono_activo
         });
 
-        // 2. Verificar tiempos de inactividad y migracion de Master estilo WolfTeam
         this.verificarPresenciaYMigracionMaster();
     }
 
@@ -139,12 +130,10 @@ class GestorRedYVoz {
         const notificarSalida = () => {
             if (this.cliente_mqtt && this.cliente_mqtt.connected && this.codigo_sala) {
                 try {
-                    // Avisa que este usuario salio; si era el Master, el siguiente hereda la sala automaticamente
                     this.publicarMensajeSala("eventos", {
                         tipo: "USUARIO_SALIO_O_DESCONECTO",
                         id_peer: this.mi_id_peer,
-                        era_master: this.es_anfitrion,
-                        en_partida: this.en_partida_online
+                        era_master: this.es_anfitrion
                     });
                 } catch (e) {
                 }
@@ -197,7 +186,6 @@ class GestorRedYVoz {
         }
     }
 
-    // Guarda el estado completo de la sala con retain:true en el broker para que cualquiera que entre 5 o 10 min despues conecte al instante
     guardarEstadoRetenidoEnBroker() {
         if (!this.es_anfitrion || !this.codigo_sala) return;
         const estado_juego = (this.en_partida_online && partida_actual && cubilete_juego)
@@ -213,6 +201,17 @@ class GestorRedYVoz {
             estado_juego: estado_juego,
             timestamp: Date.now()
         }, { retain: true });
+    }
+
+    limpiarEstadoRetenidoEnBroker() {
+        if (!this.cliente_mqtt || !this.codigo_sala) return;
+        try {
+            this.cliente_mqtt.publish(this.obtenerTopicCanal("estado_retenido"), "", {
+                qos: 0,
+                retain: true
+            });
+        } catch (e) {
+        }
     }
 
     // ==================== CREAR SALA COMO MASTER ====================
@@ -232,7 +231,6 @@ class GestorRedYVoz {
         this.jugadores_sala = [{
             id_peer: this.mi_id_peer,
             nombre: this.mi_nombre,
-            alias: this.mi_alias,
             stats: this.mis_stats,
             es_host: true,
             listo: true,
@@ -240,7 +238,7 @@ class GestorRedYVoz {
             micro_activo: this.microfono_activo,
             hablando: false,
             conectado: true,
-            orden_ingreso: Date.now(),
+            orden_ingreso: 1,
             ultimo_latido: Date.now()
         }];
 
@@ -275,7 +273,8 @@ class GestorRedYVoz {
         this.mi_id_peer = this.obtenerOCrearMiIdUnico();
         if (nombre_jugador) this.mi_nombre = String(nombre_jugador).trim() || this.mi_nombre;
         this.es_anfitrion = false;
-        this.mi_listo = true;
+        // Por defecto un invitado entra con LISTO desactivado (gris) y ESPECTADOR desactivado
+        this.mi_listo = false;
         this.mi_espectador = false;
         this.codigo_sala = codigo_limpio;
         this.unido_confirmado = false;
@@ -293,12 +292,10 @@ class GestorRedYVoz {
                         tipo: "SOLICITUD_UNIRSE",
                         id_peer: this.mi_id_peer,
                         nombre: this.mi_nombre,
-                        alias: this.mi_alias,
                         stats: this.mis_stats,
                         listo: this.mi_listo,
                         espectador: this.mi_espectador,
-                        micro_activo: this.microfono_activo,
-                        orden_ingreso: Date.now()
+                        micro_activo: this.microfono_activo
                     });
                 };
 
@@ -315,7 +312,7 @@ class GestorRedYVoz {
                         clearInterval(this.intervalo_reintento_unirse);
                         this.intervalo_reintento_unirse = null;
                         if (callback_error) {
-                            callback_error("No se encontró respuesta en la sala '" + this.codigo_sala + "'. Verifica el código.");
+                            callback_error("No se encontró la sala '" + this.codigo_sala + "' o ya fue cerrada.");
                         }
                         return;
                     }
@@ -388,7 +385,6 @@ class GestorRedYVoz {
                 conectado_una_vez = true;
                 if (on_conectado) on_conectado();
             } else {
-                // Al reconectar siempre restauramos las suscripciones de la sala
                 this.suscribirCanalesDeSala();
                 if (this.es_anfitrion) {
                     this.difundirListaJugadoresSala();
@@ -399,36 +395,38 @@ class GestorRedYVoz {
 
         this.cliente_mqtt.on("message", (topic, payload_buffer) => {
             try {
-                const mensaje = JSON.parse(payload_buffer.toString());
+                const texto = payload_buffer.toString();
+                if (!texto) return;
+                const mensaje = JSON.parse(texto);
                 this.procesarMensajeSalaUnificado(mensaje);
             } catch (e) {
             }
         });
     }
 
-    // ==================== MIGRACION DE MASTER ESTILO WOLFTEAM Y PRESENCIA ====================
+    // ==================== MIGRACION DE MASTER EN SECUENCIA ====================
 
     verificarPresenciaYMigracionMaster() {
         const ahora = Date.now();
         let hubo_cambio = false;
 
-        // Actualizar mi propio latido en la lista
         for (const j of this.jugadores_sala) {
             if (j.id_peer === this.mi_id_peer) {
                 j.conectado = true;
                 j.ultimo_latido = ahora;
             } else if (j.conectado !== false && (ahora - (j.ultimo_latido || ahora)) > 11000) {
                 j.conectado = false;
+                j.es_host = false;
                 hubo_cambio = true;
             }
         }
 
-        // Verificar si el Master actual sigue conectado; si se desconecto, migrar el Master al siguiente jugador conectado mas antiguo (estilo WolfTeam)
+        // Si el Master actual se salio o perdio conexion, el primero en secuencia (orden_ingreso) hereda el Master
         const master_actual = this.jugadores_sala.find(j => j.es_host && j.conectado !== false);
         if (!master_actual && this.jugadores_sala.length > 0) {
             const conectados = this.jugadores_sala
                 .filter(j => j.conectado !== false)
-                .sort((a, b) => (a.orden_ingreso || 0) - (b.orden_ingreso || 0));
+                .sort((a, b) => (a.orden_ingreso || 999999) - (b.orden_ingreso || 999999));
 
             if (conectados.length > 0) {
                 const nuevo_master = conectados[0];
@@ -437,10 +435,13 @@ class GestorRedYVoz {
                 }
                 const era_host_antes = this.es_anfitrion;
                 this.es_anfitrion = (nuevo_master.id_peer === this.mi_id_peer);
+                if (this.es_anfitrion) {
+                    nuevo_master.listo = true;
+                    this.mi_listo = true;
+                }
                 hubo_cambio = true;
 
                 if (!era_host_antes && this.es_anfitrion) {
-                    // Heredamos el Master de la sala
                     if (!this.en_partida_online) {
                         this.jugadores_sala = this.jugadores_sala.filter(j => j.conectado !== false);
                     }
@@ -448,7 +449,7 @@ class GestorRedYVoz {
                     this.guardarEstadoRetenidoEnBroker();
                     actualizarVistaLobbyOnline();
                     actualizarChipsVozEnJuego();
-                    actualizarInterfazCompleta();
+                    if (this.en_partida_online) actualizarInterfazCompleta();
                 }
             }
         }
@@ -474,22 +475,24 @@ class GestorRedYVoz {
 
         switch (mensaje.tipo) {
             case "SNAPSHOT_SALA": {
-                // Si soy invitado y aun no estaba confirmado, el snapshot retenido del broker me conecta al instante
                 if (!this.es_anfitrion && !this.unido_confirmado && Array.isArray(mensaje.jugadores_sala)) {
                     const hay_host_vivo = mensaje.jugadores_sala.some(j => j.es_host);
                     if (hay_host_vivo) {
                         this.modo_sala = mensaje.modo_sala || this.modo_sala;
-                        // Re-enviar solicitud inmediata al detectar snapshot
+                        this.en_partida_online = Boolean(mensaje.en_partida_online);
+                        if (mensaje.estado_juego && typeof gestor_archivos_web !== "undefined") {
+                            const rec = gestor_archivos_web.reconstruirDesdeEstado(mensaje.estado_juego);
+                            partida_actual = rec.partida;
+                            cubilete_juego = rec.cubilete;
+                        }
                         this.publicarMensajeSala("eventos", {
                             tipo: "SOLICITUD_UNIRSE",
                             id_peer: this.mi_id_peer,
                             nombre: this.mi_nombre,
-                            alias: this.mi_alias,
                             stats: this.mis_stats,
                             listo: this.mi_listo,
                             espectador: this.mi_espectador,
-                            micro_activo: this.microfono_activo,
-                            orden_ingreso: Date.now()
+                            micro_activo: this.microfono_activo
                         });
                     }
                 }
@@ -503,14 +506,12 @@ class GestorRedYVoz {
                     jug.conectado = true;
                     jug.ultimo_latido = Date.now();
                     if (mensaje.stats) jug.stats = mensaje.stats;
-                    if (mensaje.alias) jug.alias = mensaje.alias;
                     if (estaba_desc) {
                         actualizarVistaLobbyOnline();
                         actualizarChipsVozEnJuego();
                         if (this.en_partida_online) actualizarInterfazCompleta();
                     }
                 } else if (this.es_anfitrion && mensaje.id_peer !== this.mi_id_peer) {
-                    // Si el Master recibe el latido de alguien que entro mientras la laptop estaba inactiva, lo incorpora automaticamente
                     this.incorporarJugadorEnMaster(mensaje);
                 }
                 break;
@@ -531,12 +532,10 @@ class GestorRedYVoz {
                 }
                 this.eliminarAudioRemoto(mensaje.id_peer);
 
-                // Si aun estamos en la sala de espera (lobby), quitarlo de la lista
                 if (!this.en_partida_online) {
                     this.jugadores_sala = this.jugadores_sala.filter(j => j.id_peer !== mensaje.id_peer);
                 }
 
-                // Ejecutar migracion inmediata de Master si el que se salio era el Master
                 this.verificarPresenciaYMigracionMaster();
                 actualizarVistaLobbyOnline();
                 actualizarChipsVozEnJuego();
@@ -561,7 +560,6 @@ class GestorRedYVoz {
 
             case "ACTUALIZAR_LOBBY": {
                 if (Array.isArray(mensaje.jugadores_sala)) {
-                    // Preservar timestamps de latido locales
                     const mapa_previo = new Map(this.jugadores_sala.map(j => [j.id_peer, j.ultimo_latido]));
                     this.jugadores_sala = mensaje.jugadores_sala.map(j => ({
                         ...j,
@@ -571,8 +569,10 @@ class GestorRedYVoz {
                 if (mensaje.modo_sala) {
                     this.modo_sala = mensaje.modo_sala;
                 }
+                if (typeof mensaje.en_partida_online === "boolean") {
+                    this.en_partida_online = mensaje.en_partida_online;
+                }
 
-                // Sincronizar si yo soy el Master actual segun la lista
                 const mi_registro = this.jugadores_sala.find(j => j.id_peer === this.mi_id_peer);
                 if (mi_registro) {
                     this.unido_confirmado = true;
@@ -591,11 +591,40 @@ class GestorRedYVoz {
 
                 actualizarVistaLobbyOnline();
                 actualizarChipsVozEnJuego();
-                if (this.en_partida_online) {
+                if (this.en_partida_online && !document.getElementById("pantalla_juego").classList.contains("oculto")) {
                     actualizarInterfazCompleta();
                 }
                 if (this.microfono_activo && this.stream_microfono_local) {
                     this.llamarATodosLosDemasConMiVoz();
+                }
+                break;
+            }
+
+            case "ESTADO_PARTIDA_EN_CURSO": {
+                // Cuando un usuario nuevo entra a la sala mientras la partida ya inicio:
+                // Recibe los datos de la mesa pero permanece en la Sala de Espera hasta que active MODO ESPECTADOR y presione ENTRAR
+                this.unido_confirmado = true;
+                if (this.intervalo_reintento_unirse) {
+                    clearInterval(this.intervalo_reintento_unirse);
+                    this.intervalo_reintento_unirse = null;
+                }
+                this.en_partida_online = true;
+                if (mensaje.jugadores_sala) {
+                    this.jugadores_sala = mensaje.jugadores_sala;
+                }
+                if (mensaje.estado) {
+                    const rec = gestor_archivos_web.reconstruirDesdeEstado(mensaje.estado);
+                    partida_actual = rec.partida;
+                    cubilete_juego = rec.cubilete;
+                    es_partida_online = true;
+                }
+                // Si era un jugador que ya estaba sentado en la mesa y solo reconecto su internet, entra directo a su asiento
+                const estaba_sentado = partida_actual && partida_actual.obtenerListaJugadores().some(j => j.id_peer === this.mi_id_peer);
+                if (estaba_sentado) {
+                    mostrarPantallaDeJuego();
+                    actualizarInterfazCompleta();
+                } else {
+                    actualizarVistaLobbyOnline();
                 }
                 break;
             }
@@ -621,15 +650,20 @@ class GestorRedYVoz {
 
             case "REGRESAR_TODOS_A_SALA_ESPERA": {
                 this.en_partida_online = false;
-                if (mensaje.jugadores_sala) {
+                if (Array.isArray(mensaje.jugadores_sala)) {
                     this.jugadores_sala = mensaje.jugadores_sala;
+                    const mi_reg = this.jugadores_sala.find(j => j.id_peer === this.mi_id_peer);
+                    if (mi_reg) {
+                        this.es_anfitrion = Boolean(mi_reg.es_host);
+                        this.mi_listo = Boolean(mi_reg.listo);
+                        this.mi_espectador = Boolean(mi_reg.espectador);
+                    }
                 }
                 recibirRegresoASalaDeEspera();
                 break;
             }
 
             case "ANIMAR_LANZAMIENTO": {
-                // Si yo mismo fui quien lanzo los dados, ya inicie la animacion en 0ms sin lag
                 if (mensaje.id_autor === this.mi_id_peer) return;
                 recibirAnimacionLanzamientoOnline(mensaje.estado_final, mensaje.primer_tiro, mensaje.es_mano_especial);
                 if (this.es_anfitrion) {
@@ -642,7 +676,6 @@ class GestorRedYVoz {
                 if (mensaje.jugadores_sala) {
                     this.jugadores_sala = mensaje.jugadores_sala;
                 }
-                // Si yo mismo envie el cambio, solo guardamos en broker si soy host
                 if (mensaje.id_autor === this.mi_id_peer) {
                     if (this.es_anfitrion) this.guardarEstadoRetenidoEnBroker();
                     return;
@@ -672,7 +705,6 @@ class GestorRedYVoz {
         }
     }
 
-    // Incorpora un jugador nuevo o reconectado en la lista administrada por el Master actual
     incorporarJugadorEnMaster(mensaje) {
         if (!this.es_anfitrion) return;
 
@@ -687,21 +719,14 @@ class GestorRedYVoz {
             jugador_existente.conectado = true;
             jugador_existente.ultimo_latido = Date.now();
             jugador_existente.micro_activo = Boolean(mensaje.micro_activo);
-            if (mensaje.alias) jugador_existente.alias = mensaje.alias;
             if (mensaje.stats) jugador_existente.stats = mensaje.stats;
 
-            let estaba_en_partida_activa = false;
             if (this.en_partida_online && partida_actual) {
                 for (const jug_modelo of partida_actual.obtenerListaJugadores()) {
                     if (jug_modelo.id_peer === id_anterior || jug_modelo.obtenerNombreJugador().toLowerCase() === jugador_existente.nombre.toLowerCase()) {
                         jug_modelo.id_peer = mensaje.id_peer;
-                        estaba_en_partida_activa = true;
                     }
                 }
-            }
-
-            if (this.en_partida_online && !estaba_en_partida_activa) {
-                jugador_existente.espectador = true;
             }
 
             this.difundirListaJugadoresSala();
@@ -712,7 +737,7 @@ class GestorRedYVoz {
 
             if (this.en_partida_online && partida_actual && cubilete_juego) {
                 this.publicarMensajeSala("privado/" + mensaje.id_peer, {
-                    tipo: "INICIAR_PARTIDA_ONLINE",
+                    tipo: "ESTADO_PARTIDA_EN_CURSO",
                     estado: gestor_archivos_web.serializarEstadoCompleto(partida_actual, cubilete_juego),
                     jugadores_sala: this.jugadores_sala
                 });
@@ -732,23 +757,19 @@ class GestorRedYVoz {
             nombre_final = nombre_final + " (" + (this.jugadores_sala.length + 1) + ")";
         }
 
-        // Si la partida ya esta en curso (y hay mas de 1 jugador jugando), entra automaticamente como Espectador
-        const entra_como_espectador = this.en_partida_online
-            ? true
-            : Boolean(mensaje.espectador);
+        const max_orden = this.jugadores_sala.reduce((max, j) => Math.max(max, j.orden_ingreso || 0), 0);
 
         this.jugadores_sala.push({
             id_peer: mensaje.id_peer,
             nombre: nombre_final,
-            alias: mensaje.alias || "#BO",
             stats: mensaje.stats || { ganadas: 0, perdidas: 0, dormidas: 0, jugadas: 0 },
             es_host: false,
-            listo: true,
-            espectador: entra_como_espectador,
+            listo: false,
+            espectador: false,
             micro_activo: Boolean(mensaje.micro_activo),
             hablando: false,
             conectado: true,
-            orden_ingreso: mensaje.orden_ingreso || Date.now(),
+            orden_ingreso: max_orden + 1,
             ultimo_latido: Date.now()
         });
 
@@ -760,21 +781,27 @@ class GestorRedYVoz {
             actualizarInterfazCompleta();
         }
 
-        // Si el Master ya tiene la mesa abierta, le sincronizamos la mesa al nuevo integrante (para que vea en Modo Espectador)
+        // Si la partida ya esta en curso, le enviamos el estado para que tenga la opcion de activar MODO ESPECTADOR y ENTRAR
         if (this.en_partida_online && partida_actual && cubilete_juego) {
             this.publicarMensajeSala("privado/" + mensaje.id_peer, {
-                tipo: "INICIAR_PARTIDA_ONLINE",
+                tipo: "ESTADO_PARTIDA_EN_CURSO",
                 estado: gestor_archivos_web.serializarEstadoCompleto(partida_actual, cubilete_juego),
                 jugadores_sala: this.jugadores_sala
             });
         }
     }
 
-    // Cambia mi estado de Listo / No Listo en el Lobby
+    // Cambia mi estado de LISTO (si activo LISTO, desactivo MODO ESPECTADOR)
     alternarMiEstadoListo() {
         this.mi_listo = !this.mi_listo;
+        if (this.mi_listo) {
+            this.mi_espectador = false;
+        }
         const mi_reg = this.jugadores_sala.find(j => j.id_peer === this.mi_id_peer);
-        if (mi_reg) mi_reg.listo = this.mi_listo;
+        if (mi_reg) {
+            mi_reg.listo = this.mi_listo;
+            mi_reg.espectador = this.mi_espectador;
+        }
 
         this.publicarMensajeSala("eventos", {
             tipo: "CAMBIO_ESTADO_LOBBY_JUGADOR",
@@ -785,11 +812,17 @@ class GestorRedYVoz {
         actualizarVistaLobbyOnline();
     }
 
-    // Cambia mi rol entre Jugador de Mesa y Espectador
+    // Cambia mi estado de MODO ESPECTADOR (si activo ESPECTADOR, desactivo LISTO)
     alternarMiRolEspectador(forzar_valor = null) {
         this.mi_espectador = (typeof forzar_valor === "boolean") ? forzar_valor : !this.mi_espectador;
+        if (this.mi_espectador) {
+            this.mi_listo = false;
+        }
         const mi_reg = this.jugadores_sala.find(j => j.id_peer === this.mi_id_peer);
-        if (mi_reg) mi_reg.espectador = this.mi_espectador;
+        if (mi_reg) {
+            mi_reg.espectador = this.mi_espectador;
+            mi_reg.listo = this.mi_listo;
+        }
 
         this.publicarMensajeSala("eventos", {
             tipo: "CAMBIO_ESTADO_LOBBY_JUGADOR",
@@ -812,7 +845,8 @@ class GestorRedYVoz {
         this.publicarMensajeSala("eventos", {
             tipo: "ACTUALIZAR_LOBBY",
             jugadores_sala: this.jugadores_sala,
-            modo_sala: this.modo_sala
+            modo_sala: this.modo_sala,
+            en_partida_online: this.en_partida_online
         });
         if (this.microfono_activo && this.stream_microfono_local) {
             this.llamarATodosLosDemasConMiVoz();
@@ -843,7 +877,7 @@ class GestorRedYVoz {
                 const era_su_turno = (partida_actual.obtenerIndiceTurnoActual() === idx_modelo);
                 lista_partida.splice(idx_modelo, 1);
 
-                if (lista_partida.length === 0) {
+                if (lista_partida.length < 2) {
                     partida_actual.establecerPartidaTerminada(true);
                 } else if (era_su_turno) {
                     if (partida_actual.indice_turno_actual >= lista_partida.length) {
@@ -860,6 +894,9 @@ class GestorRedYVoz {
         this.difundirListaJugadoresSala();
         if (this.en_partida_online && partida_actual) {
             sincronizarYActualizarJugadaDirecta(false);
+            if (partida_actual.estaPartidaTerminada()) {
+                mostrarFinDePartida();
+            }
         } else {
             actualizarVistaLobbyOnline();
         }
@@ -868,7 +905,7 @@ class GestorRedYVoz {
     // ==================== SISTEMA DE AUDIO WEBRTC (TIPO MEET) ====================
 
     obtenerIdPeerVoz(id_jugador) {
-        return `cacho-voz-v4-${this.codigo_sala}-${id_jugador}`;
+        return `cacho-voz-v5-${this.codigo_sala}-${id_jugador}`;
     }
 
     iniciarPeerVozEnSegundoPlano() {
@@ -1072,6 +1109,13 @@ class GestorRedYVoz {
         if (this.cliente_mqtt) {
             try {
                 if (this.codigo_sala) {
+                    // Si eramos la unica persona en la sala al presionar ATRAS, limpiamos la sala retenida
+                    const conectados_restantes = this.jugadores_sala.filter(
+                        j => j.id_peer !== this.mi_id_peer && j.conectado !== false
+                    );
+                    if (conectados_restantes.length === 0) {
+                        this.limpiarEstadoRetenidoEnBroker();
+                    }
                     this.publicarMensajeSala("eventos", {
                         tipo: "USUARIO_SALIO_O_DESCONECTO",
                         id_peer: this.mi_id_peer,

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CACHO - Local y Online</title>
-    <link rel="stylesheet" href="css/estilos_cacho.css?v=4">
+    <link rel="stylesheet" href="css/estilos_cacho.css?v=5">
     <!-- Libreria MQTT over WebSockets (WSS) para conexion instantanea entre PC y Celular sin bloqueos de Router/NAT -->
     <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
     <!-- Libreria PeerJS para Audio WebRTC en GitHub Pages -->
@@ -17,8 +17,8 @@
         <div class="contenedor_menu">
             <h1 class="titulo_principal">CACHO</h1>
 
-            <!-- Pestañas de tipo de partida: Online vs Local -->
-            <div class="selector_tipo_juego">
+            <!-- Pestañas de tipo de partida: Online vs Local (se ocultan al entrar a la Sala de Espera) -->
+            <div id="selector_tipo_juego_tabs" class="selector_tipo_juego">
                 <button id="tab_modo_online" class="boton_tab activo" onclick="cambiarTabMenu('ONLINE')">
                     🌐 Jugar Online
                 </button>
@@ -27,16 +27,12 @@
                 </button>
             </div>
 
-            <!-- SECCION A: MODO ONLINE CON ENLACE Y SALA ESTILO WOLFTEAM -->
+            <!-- SECCION A: MODO ONLINE CON ENLACE Y SALA DE ESPERA -->
             <div id="panel_config_online" class="seccion_menu">
                 <div class="caja_blanca">
-                    <div class="cabecera_perfil">
-                        <h3 class="titulo_caja" style="margin-bottom:0;border:none;">Nombre del jugador</h3>
-                        <span id="badge_alias_perfil" class="badge_alias">#0000</span>
-                    </div>
-                    <div class="fila_campo" style="margin-top:6px;">
+                    <h3 class="titulo_caja">Nombre del jugador</h3>
+                    <div class="fila_campo">
                         <input type="text" id="input_nombre_online" class="campo_texto" placeholder="Escribe tu nombre..." maxlength="18" value="Jugador 1" oninput="actualizarPerfilDesdeInputs()">
-                        <input type="text" id="input_alias_online" class="campo_texto campo_alias" placeholder="#Alias" maxlength="8" value="#BO1" title="Tu identificador o alias" oninput="actualizarPerfilDesdeInputs()">
                     </div>
                     <!-- Estadisticas simples del jugador -->
                     <div id="barra_estadisticas_perfil" class="barra_stats_usuario">
@@ -47,7 +43,7 @@
                     </div>
                 </div>
 
-                <!-- Sub-bloque cuando entra normalmente a crear o unirse -->
+                <!-- Sub-bloque inicial para crear sala o entrar con codigo -->
                 <div id="subpanel_crear_o_unirse" class="caja_blanca">
                     <h3 class="titulo_caja">Crear Sala o Entrar con Código</h3>
                     <div class="fila_campo">
@@ -72,7 +68,7 @@
                     </div>
                 </div>
 
-                <!-- Sub-bloque Sala de Espera (Lobby Online estilo WolfTeam) -->
+                <!-- Sub-bloque Sala de Espera (Lobby Online limpio) -->
                 <div id="subpanel_sala_espera" class="caja_blanca oculto">
                     <div class="cabecera_sala">
                         <div class="info_titulo_sala">
@@ -104,42 +100,29 @@
                         </div>
                     </div>
 
-                    <!-- Controles de Audio tipo Meet desde la sala de espera -->
-                    <div class="barra_voz_lobby">
-                        <button id="boton_microfono_lobby" class="boton_voz micro_apagado" onclick="accionAlternarMicrofono()">
-                            🎤 Micrófono: OFF (Toca para hablar)
-                        </button>
-                        <span id="estado_voz_lobby" class="texto_estado_voz">Sala conectada en vivo</span>
-                    </div>
-
                     <div class="cabecera_lista_lobby">
                         <h4 class="subtitulo_lista">Usuarios en la sala (<span id="contador_jugadores_sala">1</span>/10):</h4>
-                        <div class="botones_estado_jugador_lobby">
-                            <button id="boton_listo_lobby" class="boton_mini_lobby btn_listo_activo" onclick="accionAlternarListoEnSala()">
-                                ✅ Estoy Listo
-                            </button>
-                            <button id="boton_rol_espectador_lobby" class="boton_mini_lobby" onclick="accionAlternarRolEspectadorEnSala()">
-                                🪑 Jugador
-                            </button>
-                        </div>
+                        <span id="aviso_partida_en_curso_lobby" class="badge_partida_en_curso oculto">🎲 Partida en curso</span>
                     </div>
 
                     <ul id="lista_jugadores_lobby" class="lista_lobby"></ul>
 
-                    <div class="acciones_lobby">
-                        <!-- Boton para el Master: Iniciar partida con los jugadores sentados -->
-                        <button id="boton_iniciar_online_host" class="boton_accion boton_verde" onclick="accionHostIniciarPartidaOnline()">
-                            ▶ INICIAR PARTIDA CON LOS DE LA SALA
+                    <!-- Fila de 4 botones compactos de la Sala de Espera: ATRAS | INICIAR PARTIDA / LISTO / ENTRAR | MODO ESPECTADOR | MICROFONO -->
+                    <div class="fila_cuatro_botones_lobby">
+                        <button id="btn_lobby_atras" class="btn_compacto_lobby btn_lobby_gris" onclick="accionSalirSalaOnline()">
+                            ATRÁS
                         </button>
-                        <!-- Boton para el Master o cualquier usuario: Abrir/Ver la mesa de juego aunque este 1 solo usuario -->
-                        <button id="boton_abrir_mesa_solitario" class="boton_accion boton_azul" onclick="accionAbrirMesaSinEsperar()">
-                            🎲 IR A LA MESA DE DADOS (SIN ESPERAR)
+
+                        <button id="btn_lobby_principal" class="btn_compacto_lobby btn_lobby_verde" onclick="accionBotonPrincipalLobby()">
+                            INICIAR<br>PARTIDA
                         </button>
-                        <p id="mensaje_esperando_host" class="texto_esperando oculto">
-                            Esperando a que el 👑 Master inicie la partida...
-                        </p>
-                        <button class="boton_accion boton_gris" onclick="accionSalirSalaOnline()">
-                            Salir de la Sala
+
+                        <button id="btn_lobby_espectador" class="btn_compacto_lobby btn_lobby_neutro" onclick="accionAlternarRolEspectadorEnSala()">
+                            MODO<br>ESPECTADOR
+                        </button>
+
+                        <button id="boton_microfono_lobby" class="btn_compacto_lobby micro_apagado" onclick="accionAlternarMicrofono()">
+                            🎤 Mic: OFF
                         </button>
                     </div>
                 </div>
@@ -197,33 +180,18 @@
     <div id="pantalla_juego" class="oculto">
         <div class="contenedor_juego">
 
-            <!-- Banner superior si el usuario esta en Modo Espectador o practicando solo -->
-            <div id="banner_estado_mesa_online" class="banner_espectador oculto">
-                <span id="texto_banner_mesa_online">👁️ MODO ESPECTADOR — Viendo partida en vivo</span>
-                <div class="acciones_banner_espectador">
-                    <button id="btn_unirse_proxima_ronda" class="btn_banner_accion" onclick="accionSolicitarEntrarAJugar()">
-                        🪑 Unirme a Jugar
-                    </button>
-                    <button id="btn_master_sala_espera_banner" class="btn_banner_accion btn_dorado oculto" onclick="accionVolverASalaDeEspera()">
-                        👥 Ir a Sala de Jugadores
-                    </button>
-                </div>
-            </div>
-
-            <!-- BARRA SUPERIOR: TURNO, TIROS/VOLTEOS Y CONTROLES DE VOZ -->
+            <!-- BARRA SUPERIOR: JUGADOR [PTS], TIROS/VOLTEOS, MODO, CODIGO SALA Y CONTROLES DE VOZ -->
             <header class="panel_superior_turno">
                 <div class="grupo_info_turno">
-                    <div id="etiqueta_info_turno" class="etiqueta_turno">TURNO: -</div>
+                    <div id="etiqueta_info_turno" class="etiqueta_turno">- [0 pts]</div>
                     <div id="etiqueta_info_tiros" class="etiqueta_tiros">Tiros: 0/2 | Volteos: 0/2</div>
                     <div id="etiqueta_modo_activo" class="etiqueta_modo">ALALAY</div>
+                    <div id="etiqueta_codigo_sala_juego" class="etiqueta_codigo_mesa oculto">----</div>
                 </div>
 
                 <!-- Controles de Audio tipo Meet integrados en la partida -->
                 <div id="panel_controles_voz_juego" class="grupo_controles_voz">
                     <div id="chips_jugadores_voz" class="chips_voz"></div>
-                    <button id="boton_sala_espera_juego" class="boton_voz btn_sala_top" onclick="accionVolverASalaDeEspera()">
-                        👥 Sala (<span id="num_en_sala_top">1</span>)
-                    </button>
                     <button id="boton_microfono_juego" class="boton_voz micro_apagado" onclick="accionAlternarMicrofono()">
                         🎤 Mic: OFF
                     </button>
@@ -360,8 +328,8 @@
 
                 <!-- Barra de botones inferior -->
                 <div class="barra_botones_inferior">
-                    <button id="boton_volver_sala_juego" class="btn_inferior btn_sala_bottom oculto" onclick="accionVolverASalaDeEspera()">
-                        👥 Sala de Jugadores / Espectadores
+                    <button id="boton_finalizar_partida_online" class="btn_inferior btn_finalizar_partida oculto" onclick="accionSolicitarFinalizarPartidaOnline()">
+                        FINALIZAR PARTIDA
                     </button>
                     <button id="boton_copiar_link_juego" class="btn_inferior btn_invitar oculto" onclick="accionCopiarEnlaceInvitacion()">
                         🔗 Copiar Link Sala
@@ -375,7 +343,7 @@
         </div>
     </div>
 
-    <!-- ==================== MODALES (HELP, PARTIDAS GUARDADAS, GANADORES, FIN) ==================== -->
+    <!-- ==================== MODALES (HELP, PARTIDAS GUARDADAS, GANADORES, FIN, CONFIRMACION) ==================== -->
     <div id="fondo_modal" class="fondo_modal oculto" onclick="cerrarModalSiClickFondo(event)">
         <div class="ventana_modal">
             <div class="cabecera_modal">
@@ -393,8 +361,8 @@
     <div id="contenedor_audios_remotos" style="display:none;"></div>
 
     <!-- Scripts modulares del proyecto -->
-    <script src="js/modelo_cacho.js?v=4"></script>
-    <script src="js/red_y_voz.js?v=4"></script>
-    <script src="js/controlador_vista.js?v=4"></script>
+    <script src="js/modelo_cacho.js?v=5"></script>
+    <script src="js/red_y_voz.js?v=5"></script>
+    <script src="js/controlador_vista.js?v=5"></script>
 </body>
 </html>
