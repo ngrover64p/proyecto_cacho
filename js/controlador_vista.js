@@ -1,4 +1,4 @@
-// Controlador principal y renderizado visual del Juego de Cacho (Local y Online)
+// Controlador principal y renderizado visual del Juego de Cacho (Local y Online estilo WolfTeam)
 
 const calculador_puntaje = new CalculadorPuntaje();
 const gestor_archivos_web = new GestorArchivosWeb();
@@ -7,6 +7,7 @@ const gestor_red_voz = new GestorRedYVoz();
 let partida_actual = null;
 let cubilete_juego = null;
 let es_partida_online = false;
+let estadistica_partida_registrada = false;
 
 // Estado de animacion del vaso/cubilete y dados
 let animacion_en_curso = false;
@@ -20,10 +21,49 @@ let nombres_jugadores_locales = ["Jugador 1", "Jugador 2"];
 
 // Inicializacion al cargar la pagina
 window.addEventListener("DOMContentLoaded", () => {
+    cargarPerfilUsuarioEnMenu();
     renderizarCamposJugadoresLocales();
     dibujarTodosLosDadosIniciales();
     verificarParametroSalaEnURL();
 });
+
+// ==================== PERFIL DE USUARIO Y ESTADISTICAS ====================
+
+function cargarPerfilUsuarioEnMenu() {
+    const perfil = gestor_archivos_web.obtenerPerfilUsuario();
+    const input_nom = document.getElementById("input_nombre_online");
+    const input_ali = document.getElementById("input_alias_online");
+    if (input_nom) input_nom.value = perfil.nombre;
+    if (input_ali) input_ali.value = perfil.alias;
+    renderizarBarraEstadisticasPerfil(perfil);
+}
+
+function actualizarPerfilDesdeInputs() {
+    const input_nom = document.getElementById("input_nombre_online");
+    const input_ali = document.getElementById("input_alias_online");
+    let alias_val = input_ali ? input_ali.value.trim() : "#BO1";
+    if (alias_val && !alias_val.startsWith("#")) {
+        alias_val = "#" + alias_val;
+    }
+    const actualizado = gestor_archivos_web.guardarPerfilUsuario({
+        nombre: input_nom ? input_nom.value : "Jugador 1",
+        alias: alias_val || "#BO1"
+    });
+    renderizarBarraEstadisticasPerfil(actualizado);
+}
+
+function renderizarBarraEstadisticasPerfil(perfil) {
+    const badge = document.getElementById("badge_alias_perfil");
+    if (badge) badge.textContent = perfil.alias || "#BO1";
+    const s_gan = document.getElementById("stat_ganadas");
+    const s_per = document.getElementById("stat_perdidas");
+    const s_dor = document.getElementById("stat_dormidas");
+    const s_jug = document.getElementById("stat_jugadas");
+    if (s_gan) s_gan.textContent = String(perfil.ganadas || 0);
+    if (s_per) s_per.textContent = String(perfil.perdidas || 0);
+    if (s_dor) s_dor.textContent = String(perfil.dormidas || 0);
+    if (s_jug) s_jug.textContent = String(perfil.jugadas || 0);
+}
 
 // Detecta si el jugador abrio un enlace de invitacion (?sala=XXXX)
 function verificarParametroSalaEnURL() {
@@ -37,14 +77,13 @@ function verificarParametroSalaEnURL() {
             campo_codigo.value = codigo_url.trim().toUpperCase();
         }
         if (campo_nombre) {
-            campo_nombre.value = "";
-            campo_nombre.placeholder = "Escribe tu nombre para entrar a la sala " + codigo_url.toUpperCase();
             campo_nombre.focus();
+            campo_nombre.select();
         }
         mostrarAvisoModal(
             "Invitación a Sala de Cacho",
             `<p>Te invitaron a la sala <b>${codigo_url.toUpperCase()}</b>.</p>
-             <p style="margin-top:8px;">Escribe tu nombre en la casilla <b>"Nombre del jugador"</b> y presiona el botón azul <b>"ENTRAR A SALA"</b>.</p>`
+             <p style="margin-top:8px;">Verifica tu nombre en <b>"Nombre del jugador"</b> y presiona el botón azul <b>"ENTRAR A SALA"</b>.</p>`
         );
     }
 }
@@ -146,32 +185,33 @@ function iniciarNuevaPartidaLocal() {
     }
 
     es_partida_online = false;
-    partida_actual = new Partida(lista_jugadores, modo_sel);
+    estadistica_partida_registrada = false;
+    partida_actual = new Partida(lista_jugadores, modo_sel, false);
     cubilete_juego = new Cubilete(partida_actual.obtenerModoJuego());
     mostrarPantallaDeJuego();
     actualizarInterfazCompleta();
     verificarSiTurnoEsComputadora();
 }
 
-// ==================== SALA ONLINE Y ENLACE DE INVITACION ====================
+// ==================== SALA ONLINE ESTILO WOLFTEAM + QR ====================
 
 function accionCrearSalaOnline() {
+    actualizarPerfilDesdeInputs();
     const nombre_host = document.getElementById("input_nombre_online").value.trim() || "Jugador 1";
     const modo_online = document.getElementById("combo_modo_online").value;
 
     document.getElementById("subpanel_crear_o_unirse").classList.add("oculto");
     document.getElementById("subpanel_sala_espera").classList.remove("oculto");
-    document.getElementById("etiqueta_codigo_sala").textContent = "Creando...";
+    document.getElementById("etiqueta_codigo_sala").textContent = "...";
 
     gestor_red_voz.crearSalaComoAnfitrion(
         nombre_host,
         modo_online,
         (codigo, link) => {
-            document.getElementById("etiqueta_rol_sala").textContent = `ANFITRIÓN (${modo_online})`;
             document.getElementById("etiqueta_codigo_sala").textContent = codigo;
             document.getElementById("input_enlace_invitacion").value = link;
-            document.getElementById("boton_iniciar_online_host").classList.remove("oculto");
-            document.getElementById("mensaje_esperando_host").classList.add("oculto");
+            actualizarImagenQRSala(link);
+            actualizarVistaLobbyOnline();
         },
         (mensaje_error) => {
             accionSalirSalaOnline();
@@ -181,6 +221,7 @@ function accionCrearSalaOnline() {
 }
 
 function accionUnirseSalaOnline() {
+    actualizarPerfilDesdeInputs();
     const nombre_invitado = document.getElementById("input_nombre_online").value.trim() || "Invitado";
     const codigo_sala = document.getElementById("input_codigo_sala").value.trim().toUpperCase();
 
@@ -192,15 +233,14 @@ function accionUnirseSalaOnline() {
     document.getElementById("subpanel_crear_o_unirse").classList.add("oculto");
     document.getElementById("subpanel_sala_espera").classList.remove("oculto");
     document.getElementById("etiqueta_codigo_sala").textContent = codigo_sala;
-    document.getElementById("boton_iniciar_online_host").classList.add("oculto");
-    document.getElementById("mensaje_esperando_host").classList.remove("oculto");
 
     gestor_red_voz.unirseASalaConCodigo(
         nombre_invitado,
         codigo_sala,
         (codigo, link) => {
-            document.getElementById("etiqueta_rol_sala").textContent = "CONECTADO A SALA";
             document.getElementById("input_enlace_invitacion").value = link;
+            actualizarImagenQRSala(link);
+            actualizarVistaLobbyOnline();
         },
         (mensaje_error) => {
             accionSalirSalaOnline();
@@ -209,34 +249,164 @@ function accionUnirseSalaOnline() {
     );
 }
 
+function actualizarImagenQRSala(link_sala) {
+    const img_qr = document.getElementById("img_qr_sala");
+    if (img_qr && link_sala) {
+        img_qr.src = `https://api.qrserver.com/v1/create-qr-code/?size=190x190&data=${encodeURIComponent(link_sala)}`;
+    }
+}
+
+function accionAlternarQRSala() {
+    const caja_qr = document.getElementById("caja_qr_sala");
+    if (caja_qr) {
+        caja_qr.classList.toggle("oculto");
+        if (!caja_qr.classList.contains("oculto")) {
+            actualizarImagenQRSala(gestor_red_voz.obtenerEnlaceInvitacion());
+        }
+    }
+}
+
+function mostrarModalQRJuegoGeneral() {
+    const url_juego = window.location.origin + window.location.pathname;
+    const qr_src = `https://api.qrserver.com/v1/create-qr-code/?size=210x210&data=${encodeURIComponent(url_juego)}`;
+    const html = `
+        <div style="text-align:center;">
+            <p style="margin-bottom:10px;">Pasa este enlace o haz que escaneen este código QR para abrir el juego y crear sus propias salas:</p>
+            <img src="${qr_src}" alt="QR del Juego" style="width:190px;height:190px;border:2px solid #142d5c;border-radius:8px;padding:6px;">
+            <div style="margin-top:10px;display:flex;gap:6px;">
+                <input type="text" class="campo_texto" value="${url_juego}" readonly id="input_url_general_qr">
+                <button class="boton_copiar" onclick="navigator.clipboard.writeText('${url_juego}')">📋 Copiar</button>
+            </div>
+        </div>
+    `;
+    mostrarAvisoModal("Compartir Juego de Cacho (Enlace y QR)", html);
+}
+
+function accionAlternarListoEnSala() {
+    gestor_red_voz.alternarMiEstadoListo();
+}
+
+function accionAlternarRolEspectadorEnSala() {
+    gestor_red_voz.alternarMiRolEspectador();
+}
+
+function accionMasterCambiarModoSala() {
+    const combo = document.getElementById("combo_cambiar_modo_sala");
+    if (combo && gestor_red_voz.es_anfitrion) {
+        gestor_red_voz.cambiarModoDeSalaComoMaster(combo.value);
+    }
+}
+
 function actualizarVistaLobbyOnline() {
     const lista_ul = document.getElementById("lista_jugadores_lobby");
     const contador_span = document.getElementById("contador_jugadores_sala");
     if (!lista_ul) return;
 
+    // Titulo de la sala con el modo activo
+    const etiq_rol = document.getElementById("etiqueta_rol_sala");
+    if (etiq_rol) {
+        etiq_rol.textContent = `SALA: ${gestor_red_voz.modo_sala}`;
+    }
+
+    const combo_modo_sala = document.getElementById("combo_cambiar_modo_sala");
+    if (combo_modo_sala) {
+        combo_modo_sala.value = gestor_red_voz.modo_sala;
+        if (gestor_red_voz.es_anfitrion) {
+            combo_modo_sala.classList.remove("oculto");
+        } else {
+            combo_modo_sala.classList.add("oculto");
+        }
+    }
+
+    // Botones de estado personal en el lobby (Listo / Espectador)
+    const btn_listo = document.getElementById("boton_listo_lobby");
+    const btn_esp = document.getElementById("boton_rol_espectador_lobby");
+    if (btn_listo) {
+        btn_listo.textContent = gestor_red_voz.mi_listo ? "✅ Estoy Listo" : "⏳ No Listo";
+        btn_listo.className = "boton_mini_lobby" + (gestor_red_voz.mi_listo ? " btn_listo_activo" : "");
+    }
+    if (btn_esp) {
+        btn_esp.textContent = gestor_red_voz.mi_espectador ? "👁️ Espectador" : "🪑 Jugador";
+        btn_esp.className = "boton_mini_lobby" + (gestor_red_voz.mi_espectador ? " btn_espectador_activo" : "");
+    }
+
     lista_ul.innerHTML = "";
     contador_span.textContent = String(gestor_red_voz.jugadores_sala.length);
 
+    let cantidad_jugadores_sentados = 0;
     for (const j of gestor_red_voz.jugadores_sala) {
+        if (!j.espectador && j.conectado !== false) {
+            cantidad_jugadores_sentados++;
+        }
+
         const item = document.createElement("li");
         const icono_mic = j.micro_activo ? (j.hablando ? "🟢🎤" : "🎤") : "🔇";
-        const etiqueta_host = j.es_host ? " (Anfitrión)" : "";
         const etiqueta_tu = j.id_peer === gestor_red_voz.mi_id_peer ? " [Tú]" : "";
-        item.innerHTML = `<span>${j.nombre}${etiqueta_host}${etiqueta_tu}</span><span>${icono_mic}</span>`;
+        const alias_txt = j.alias ? ` <span class="stats_mini_lobby">${j.alias}</span>` : "";
+        const ganadas_num = (j.stats && j.stats.ganadas) ? j.stats.ganadas : 0;
+        const perdidas_num = (j.stats && j.stats.perdidas) ? j.stats.perdidas : 0;
+        const stats_txt = `<span class="stats_mini_lobby">(🏆${ganadas_num} / ❌${perdidas_num})</span>`;
+
+        let badge_rol = "";
+        if (j.es_host) {
+            badge_rol = `<span class="badge_rol_lobby badge_master">👑 MASTER</span>`;
+        }
+        if (j.espectador) {
+            badge_rol += `<span class="badge_rol_lobby badge_espectador">👁️ ESPECTADOR</span>`;
+        } else if (j.listo) {
+            badge_rol += `<span class="badge_rol_lobby badge_listo">✅ LISTO</span>`;
+        } else {
+            badge_rol += `<span class="badge_rol_lobby badge_espera">⏳ EN SALA</span>`;
+        }
+
+        let btn_kick_lobby = "";
+        if (gestor_red_voz.es_anfitrion && j.id_peer !== gestor_red_voz.mi_id_peer) {
+            btn_kick_lobby = `<button class="btn_expulsar_chip" onclick="confirmarExpulsionJugador('${j.id_peer}', '${j.nombre}')">✕</button>`;
+        }
+
+        item.innerHTML = `
+            <div>
+                <span>${j.nombre}${etiqueta_tu}</span>
+                ${alias_txt}
+                ${stats_txt}
+                ${badge_rol}
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span>${icono_mic}</span>
+                ${btn_kick_lobby}
+            </div>
+        `;
         lista_ul.appendChild(item);
     }
 
     const btn_iniciar = document.getElementById("boton_iniciar_online_host");
-    if (btn_iniciar && gestor_red_voz.es_anfitrion) {
-        btn_iniciar.disabled = gestor_red_voz.jugadores_sala.length < 2;
-        btn_iniciar.textContent = gestor_red_voz.jugadores_sala.length < 2
-            ? "⏳ ESPERANDO AL MENOS 2 JUGADORES..."
-            : `▶ EMPEZAR PARTIDA (${gestor_red_voz.jugadores_sala.length} JUGADORES)`;
+    const btn_mesa_solo = document.getElementById("boton_abrir_mesa_solitario");
+    const msg_esperando = document.getElementById("mensaje_esperando_host");
+
+    if (gestor_red_voz.es_anfitrion) {
+        btn_iniciar.classList.remove("oculto");
+        btn_mesa_solo.classList.remove("oculto");
+        msg_esperando.classList.add("oculto");
+
+        btn_iniciar.disabled = (cantidad_jugadores_sentados < 2);
+        btn_iniciar.textContent = (cantidad_jugadores_sentados < 2)
+            ? "⏳ ESPERANDO 2+ JUGADORES PARA PARTIDA..."
+            : `▶ INICIAR PARTIDA (${cantidad_jugadores_sentados} JUGADORES EN MESA)`;
+        btn_mesa_solo.textContent = "🎲 ABRIR MESA DE DADOS (SIN ESPERAR)";
+    } else {
+        btn_iniciar.classList.add("oculto");
+        msg_esperando.classList.remove("oculto");
+        if (gestor_red_voz.en_partida_online && partida_actual) {
+            btn_mesa_solo.classList.remove("oculto");
+            btn_mesa_solo.textContent = "👁️ VER MESA DE JUEGO EN VIVO";
+        } else {
+            btn_mesa_solo.classList.add("oculto");
+        }
     }
 }
 
 function confirmarExpulsionJugador(id_peer, nombre_jugador) {
-    if (confirm(`¿Expulsar a ${nombre_jugador} de la partida para que el turno avance?`)) {
+    if (confirm(`¿Expulsar a ${nombre_jugador} de la sala?`)) {
         gestor_red_voz.expulsarJugadorDePartida(id_peer);
     }
 }
@@ -273,19 +443,44 @@ function accionSalirSalaOnline() {
     document.getElementById("subpanel_crear_o_unirse").classList.remove("oculto");
 }
 
+// El Master inicia la partida con todos los usuarios de la sala que tengan rol de Jugador (no espectadores)
 function accionHostIniciarPartidaOnline() {
     if (!gestor_red_voz.es_anfitrion) return;
-    if (gestor_red_voz.jugadores_sala.length < 2) {
-        mostrarAvisoModal("Aviso", "Se necesitan al menos 2 jugadores en la sala para iniciar.");
+
+    const activos_mesa = gestor_red_voz.jugadores_sala.filter(j => !j.espectador && j.conectado !== false);
+    if (activos_mesa.length < 2) {
+        mostrarAvisoModal("Aviso", "Se necesitan al menos 2 usuarios con rol de '🪑 Jugador' para iniciar una partida competitiva, o usa el botón azul '🎲 Abrir Mesa de Dados (Sin esperar)'.");
         return;
     }
 
-    const jugadores_partida = gestor_red_voz.jugadores_sala.map(
+    iniciarMesaOnlineConLista(activos_mesa, false);
+}
+
+// Permite al Master abrir la mesa de inmediato (incluso estando el solo en la sala) o a un espectador ver la mesa activa
+function accionAbrirMesaSinEsperar() {
+    if (!gestor_red_voz.es_anfitrion) {
+        if (gestor_red_voz.en_partida_online && partida_actual) {
+            mostrarPantallaDeJuego();
+            actualizarInterfazCompleta();
+        }
+        return;
+    }
+
+    let activos_mesa = gestor_red_voz.jugadores_sala.filter(j => !j.espectador && j.conectado !== false);
+    if (activos_mesa.length === 0) {
+        activos_mesa = [gestor_red_voz.jugadores_sala[0]];
+    }
+    iniciarMesaOnlineConLista(activos_mesa, true);
+}
+
+function iniciarMesaOnlineConLista(lista_jugadores_sala, permitir_solitario) {
+    const jugadores_partida = lista_jugadores_sala.map(
         j => new Jugador(j.nombre, false, j.id_peer)
     );
     es_partida_online = true;
+    estadistica_partida_registrada = false;
     gestor_red_voz.en_partida_online = true;
-    partida_actual = new Partida(jugadores_partida, gestor_red_voz.modo_sala);
+    partida_actual = new Partida(jugadores_partida, gestor_red_voz.modo_sala, permitir_solitario);
     cubilete_juego = new Cubilete(partida_actual.obtenerModoJuego());
 
     const estado_inicial = gestor_archivos_web.serializarEstadoCompleto(partida_actual, cubilete_juego);
@@ -306,6 +501,7 @@ function recibirInicioOSincronizacionOnline(estado_serializado, mostrar_mesa) {
     es_partida_online = true;
 
     if (mostrar_mesa) {
+        estadistica_partida_registrada = false;
         mostrarPantallaDeJuego();
     }
     actualizarInterfazCompleta();
@@ -313,6 +509,53 @@ function recibirInicioOSincronizacionOnline(estado_serializado, mostrar_mesa) {
     if (partida_actual.estaPartidaTerminada()) {
         mostrarFinDePartida();
     }
+}
+
+// Boton "👥 Sala" en la mesa de juego: permite volver a la Sala de Selección para unir espectadores
+function accionVolverASalaDeEspera() {
+    if (!es_partida_online) {
+        accionVolverAlMenu();
+        return;
+    }
+
+    if (gestor_red_voz.es_anfitrion) {
+        // Si soy el Master, llevo a todos los integrantes de la sala de regreso al Lobby de seleccion
+        // y convierto a los espectadores en jugadores listos para que puedan entrar a la nueva partida
+        for (const j of gestor_red_voz.jugadores_sala) {
+            j.espectador = false;
+            j.listo = true;
+        }
+        gestor_red_voz.mi_espectador = false;
+        gestor_red_voz.en_partida_online = false;
+        gestor_red_voz.difundirATodos({
+            tipo: "REGRESAR_TODOS_A_SALA_ESPERA",
+            jugadores_sala: gestor_red_voz.jugadores_sala
+        });
+        recibirRegresoASalaDeEspera();
+    } else {
+        // Si soy invitado/espectador, muestro mi vista del Lobby de la sala sin desconectarme
+        recibirRegresoASalaDeEspera();
+    }
+}
+
+function recibirRegresoASalaDeEspera() {
+    cerrarModal();
+    document.getElementById("pantalla_juego").classList.add("oculto");
+    document.getElementById("pantalla_menu").classList.remove("oculto");
+    cambiarTabMenu("ONLINE");
+    document.getElementById("subpanel_crear_o_unirse").classList.add("oculto");
+    document.getElementById("subpanel_sala_espera").classList.remove("oculto");
+    actualizarVistaLobbyOnline();
+}
+
+// Cuando un espectador toca "🪑 Unirme a Jugar" desde el banner de la mesa
+function accionSolicitarEntrarAJugar() {
+    gestor_red_voz.alternarMiRolEspectador(false);
+    actualizarBannerEspectadorYMesa();
+    mostrarAvisoModal(
+        "Listo para entrar a la mesa",
+        "Ya estás marcado como <b>🪑 Jugador</b>. En cuanto el 👑 Master abra la <b>👥 Sala de Jugadores</b> o inicie la siguiente ronda, entrarás a jugar."
+    );
 }
 
 // ==================== CONTROLES DE VOZ (MICROFONO Y ALTAVOZ) ====================
@@ -347,25 +590,30 @@ function actualizarBotonesVozUI() {
 
 function actualizarChipsVozEnJuego() {
     const contenedor_chips = document.getElementById("chips_jugadores_voz");
+    const span_num_sala = document.getElementById("num_en_sala_top");
+    if (span_num_sala) {
+        span_num_sala.textContent = String(gestor_red_voz.jugadores_sala.length);
+    }
     if (!contenedor_chips) return;
     contenedor_chips.innerHTML = "";
 
     for (const j of gestor_red_voz.jugadores_sala) {
         const chip = document.createElement("div");
         const esta_conectado = (j.conectado !== false);
-        chip.className = "chip_jugador_voz" 
-            + (j.hablando ? " hablando" : "") 
+        chip.className = "chip_jugador_voz"
+            + (j.hablando ? " hablando" : "")
             + (!esta_conectado ? " desconectado" : "");
 
-        const icono = !esta_conectado ? "⚠️" : (j.micro_activo ? "🎤" : "🔇");
-        const estado_txt = !esta_conectado ? " (Desconectado)" : "";
-        chip.innerHTML = `<span>${icono} ${j.nombre}${estado_txt}</span>`;
+        const icono_corona = j.es_host ? "👑 " : "";
+        const icono_rol = j.espectador ? "👁️ " : "";
+        const icono_voz = !esta_conectado ? "⚠️" : (j.micro_activo ? "🎤" : "🔇");
+        const estado_txt = !esta_conectado ? " (Desc.)" : "";
+        chip.innerHTML = `<span>${icono_corona}${icono_rol}${icono_voz} ${j.nombre}${estado_txt}</span>`;
 
-        // Si es el anfitrión, mostrar botón para expulsar (resaltado si se desconectó)
-        if (gestor_red_voz.es_anfitrion && !j.es_host) {
+        if (gestor_red_voz.es_anfitrion && j.id_peer !== gestor_red_voz.mi_id_peer) {
             const btn_exp = document.createElement("button");
             btn_exp.className = "btn_expulsar_chip";
-            btn_exp.title = "Expulsar jugador de la partida";
+            btn_exp.title = "Expulsar jugador de la sala";
             btn_exp.textContent = !esta_conectado ? "✕ Expulsar" : "✕";
             btn_exp.onclick = (e) => {
                 e.stopPropagation();
@@ -388,13 +636,66 @@ function mostrarPantallaDeJuego() {
 
     const panel_voz = document.getElementById("panel_controles_voz_juego");
     const btn_link = document.getElementById("boton_copiar_link_juego");
+    const btn_volver_sala = document.getElementById("boton_volver_sala_juego");
+
     if (es_partida_online) {
         panel_voz.classList.remove("oculto");
         btn_link.classList.remove("oculto");
+        if (btn_volver_sala) btn_volver_sala.classList.remove("oculto");
         actualizarChipsVozEnJuego();
     } else {
         panel_voz.classList.add("oculto");
         btn_link.classList.add("oculto");
+        if (btn_volver_sala) btn_volver_sala.classList.add("oculto");
+    }
+    actualizarBannerEspectadorYMesa();
+}
+
+function estoySentadoEnPartidaActual() {
+    if (!partida_actual) return false;
+    if (!es_partida_online) return true;
+    return partida_actual.obtenerListaJugadores().some(j => j.id_peer === gestor_red_voz.mi_id_peer);
+}
+
+function actualizarBannerEspectadorYMesa() {
+    const banner = document.getElementById("banner_estado_mesa_online");
+    const texto = document.getElementById("texto_banner_mesa_online");
+    const btn_unirse = document.getElementById("btn_unirse_proxima_ronda");
+    const btn_master_sala = document.getElementById("btn_master_sala_espera_banner");
+
+    if (!banner || !es_partida_online || !partida_actual) {
+        if (banner) banner.classList.add("oculto");
+        return;
+    }
+
+    const sentado = estoySentadoEnPartidaActual();
+    const total_en_sala = gestor_red_voz.jugadores_sala.length;
+    const total_en_mesa = partida_actual.obtenerCantidadJugadores();
+    const espectadores_esperando = total_en_sala - total_en_mesa;
+
+    if (!sentado) {
+        // Soy un espectador viendo la partida en curso
+        banner.classList.remove("oculto");
+        texto.textContent = gestor_red_voz.mi_espectador
+            ? "👁️ MODO ESPECTADOR — Viendo partida en vivo"
+            : "🪑 EN FILA DE ESPERA — Entrarás en cuanto el Master inicie nueva mesa";
+        btn_unirse.classList.toggle("oculto", !gestor_red_voz.mi_espectador);
+        btn_master_sala.classList.add("oculto");
+    } else if (gestor_red_voz.es_anfitrion && (total_en_mesa === 1 || espectadores_esperando > 0)) {
+        // Soy el Master y estoy practicando solo o hay amigos esperando en modo espectador
+        banner.classList.remove("oculto");
+        if (espectadores_esperando > 0) {
+            texto.textContent = `👥 Hay ${espectadores_esperando} jugador(es) en espera mirando la mesa`;
+        } else {
+            texto.textContent = `🎲 MESA EN MODO PRÁCTICA (1 Jugador) — Código de Sala: ${gestor_red_voz.codigo_sala}`;
+        }
+        btn_unirse.classList.add("oculto");
+        btn_master_sala.classList.remove("oculto");
+        btn_master_sala.textContent = espectadores_esperando > 0
+            ? `👥 Abrir Sala e Incluir a Todos (${total_en_sala})`
+            : "👥 Volver a Sala de Espera";
+    } else {
+        banner.classList.add("oculto");
     }
 }
 
@@ -402,26 +703,23 @@ function mostrarPantallaDeJuego() {
 function esMiTurnoDeJugar() {
     if (!partida_actual || partida_actual.estaPartidaTerminada()) return false;
     const jugador_en_turno = partida_actual.obtenerJugadorActual();
-    if (jugador_en_turno.esComputadora()) return false;
+    if (!jugador_en_turno || jugador_en_turno.esComputadora()) return false;
     if (!es_partida_online) return true;
     return jugador_en_turno.id_peer === gestor_red_voz.mi_id_peer;
 }
 
-// ==================== ACCIONES DE JUEGO (LOCAL Y ONLINE) ====================
+// ==================== ACCIONES DE JUEGO CON 0-LAG (AUTORIDAD EN TURNO) ====================
 
 function accionLanzarDadosConAnimacion() {
     if (animacion_en_curso || cambio_turno_en_pausa) return;
     if (!esMiTurnoDeJugar()) return;
 
-    if (es_partida_online && !gestor_red_voz.es_anfitrion) {
-        gestor_red_voz.enviarAccionAlHost("LANZAR");
-        return;
-    }
-
-    ejecutarLanzamientoComoAutoridad();
+    // 0-Lag: El jugador en turno calcula y anima inmediatamente en su propio dispositivo (0ms delay)
+    // y transmite la tirada al resto de la sala en paralelo
+    ejecutarLanzamientoInstantaneoEnTurno();
 }
 
-function ejecutarLanzamientoComoAutoridad() {
+function ejecutarLanzamientoInstantaneoEnTurno() {
     if (!partida_actual || partida_actual.estaPartidaTerminada()) return;
     if (!cubilete_juego.puedeLanzarDados()) {
         mostrarAvisoModal("Aviso", "Ya no tienes más tiros en este turno.");
@@ -438,10 +736,11 @@ function ejecutarLanzamientoComoAutoridad() {
         calculador_puntaje.esGrande(valores_nuevos)
     );
 
-    if (es_partida_online && gestor_red_voz.es_anfitrion) {
+    if (es_partida_online) {
         const estado_nuevo = gestor_archivos_web.serializarEstadoCompleto(partida_actual, cubilete_juego);
         gestor_red_voz.difundirATodos({
             tipo: "ANIMAR_LANZAMIENTO",
+            id_autor: gestor_red_voz.mi_id_peer,
             estado_final: estado_nuevo,
             primer_tiro: primer_tiro,
             es_mano_especial: es_mano_especial
@@ -545,47 +844,28 @@ function accionToqueDirectoDado(indice_dado) {
 
 function accionAlternarBloqueoDado(indice_dado) {
     if (animacion_en_curso || cambio_turno_en_pausa || !esMiTurnoDeJugar()) return;
-
-    if (es_partida_online && !gestor_red_voz.es_anfitrion) {
-        gestor_red_voz.enviarAccionAlHost("BLOQUEAR", indice_dado);
-        return;
-    }
-
     if (cubilete_juego.obtenerTirosRealizados() === 0) return;
+
     const dado = cubilete_juego.obtenerDado(indice_dado);
     if (dado) {
         dado.alternarBloqueoDado();
-        sincronizarYActualizarHost(false);
+        sincronizarYActualizarJugadaDirecta(false);
     }
 }
 
 function accionVoltearDado(indice_dado) {
     if (animacion_en_curso || cambio_turno_en_pausa || !esMiTurnoDeJugar()) return;
 
-    if (es_partida_online && !gestor_red_voz.es_anfitrion) {
-        gestor_red_voz.enviarAccionAlHost("VOLTEAR", indice_dado);
-        return;
-    }
-
     if (!cubilete_juego.voltearDadoEnPosicion(indice_dado)) {
         mostrarAvisoModal("Aviso", "No puedes voltear más dados en este turno.");
         return;
     }
-    sincronizarYActualizarHost(false);
+    sincronizarYActualizarJugadaDirecta(false);
 }
 
 function accionAnotarEnCategoria(indice_categoria) {
     if (animacion_en_curso || cambio_turno_en_pausa || !esMiTurnoDeJugar()) return;
 
-    if (es_partida_online && !gestor_red_voz.es_anfitrion) {
-        gestor_red_voz.enviarAccionAlHost("ANOTAR", indice_categoria);
-        return;
-    }
-
-    ejecutarAnotacionComoAutoridad(indice_categoria);
-}
-
-function ejecutarAnotacionComoAutoridad(indice_categoria) {
     if (cubilete_juego.obtenerTirosRealizados() === 0) {
         mostrarAvisoModal("Aviso", "Debes lanzar los dados antes de anotar.");
         return;
@@ -609,21 +889,20 @@ function ejecutarAnotacionComoAutoridad(indice_categoria) {
     }
 
     cambio_turno_en_pausa = true;
-    sincronizarYActualizarHost(true);
+    sincronizarYActualizarJugadaDirecta(true);
 
-    // Pausa de 1000ms igual a VentanaJuego.java antes de cambiar de jugador
     setTimeout(() => {
         cambio_turno_en_pausa = false;
         if (partida_actual.estaPartidaTerminada()) {
-            sincronizarYActualizarHost(false);
+            sincronizarYActualizarJugadaDirecta(false);
             mostrarFinDePartida();
         } else {
             partida_actual.pasarSiguienteJugador();
             cubilete_juego.reiniciarParaNuevoTurno();
-            sincronizarYActualizarHost(false);
+            sincronizarYActualizarJugadaDirecta(false);
             verificarSiTurnoEsComputadora();
         }
-    }, 1000);
+    }, 950);
 }
 
 function mostrarPausaVisualRemota() {
@@ -631,38 +910,16 @@ function mostrarPausaVisualRemota() {
     setTimeout(() => {
         cambio_turno_en_pausa = false;
         actualizarInterfazCompleta();
-    }, 980);
+    }, 920);
 }
 
-// Procesa jugadas enviadas por un invitado cuando es su turno en partida online
-function ejecutarAccionRemotaEnHost(id_peer_remitente, subtipo_accion, indice_valor) {
-    if (!partida_actual || partida_actual.estaPartidaTerminada() || animacion_en_curso || cambio_turno_en_pausa) return;
-    const jugador_turno = partida_actual.obtenerJugadorActual();
-    if (jugador_turno.id_peer !== id_peer_remitente) return;
-
-    if (subtipo_accion === "LANZAR") {
-        ejecutarLanzamientoComoAutoridad();
-    } else if (subtipo_accion === "BLOQUEAR") {
-        if (cubilete_juego.obtenerTirosRealizados() > 0 && cubilete_juego.puedeLanzarDados()) {
-            const dado = cubilete_juego.obtenerDado(indice_valor);
-            if (dado) dado.alternarBloqueoDado();
-            sincronizarYActualizarHost(false);
-        }
-    } else if (subtipo_accion === "VOLTEAR") {
-        if (cubilete_juego.voltearDadoEnPosicion(indice_valor)) {
-            sincronizarYActualizarHost(false);
-        }
-    } else if (subtipo_accion === "ANOTAR") {
-        ejecutarAnotacionComoAutoridad(indice_valor);
-    }
-}
-
-function sincronizarYActualizarHost(en_pausa_turno) {
+function sincronizarYActualizarJugadaDirecta(en_pausa_turno) {
     actualizarInterfazCompleta();
-    if (es_partida_online && gestor_red_voz.es_anfitrion) {
+    if (es_partida_online) {
         const estado = gestor_archivos_web.serializarEstadoCompleto(partida_actual, cubilete_juego);
         gestor_red_voz.difundirATodos({
             tipo: "SINCRONIZAR_ESTADO",
+            id_autor: gestor_red_voz.mi_id_peer,
             estado: estado,
             pausa_cambio_turno: Boolean(en_pausa_turno)
         });
@@ -730,18 +987,20 @@ function actualizarInterfazCompleta() {
     document.getElementById("etiqueta_info_tiros").textContent =
         `Tiros: ${tiros}/${cubilete_juego.obtenerMaximoTirosPermitidos()}   |   Volteos: ${cubilete_juego.obtenerVolteosRealizados()}/${cubilete_juego.obtenerMaximoVolteosPermitidos()}`;
 
+    actualizarBannerEspectadorYMesa();
+
     const aviso_remoto = document.getElementById("aviso_turno_remoto");
     if (es_partida_online && !esMiTurnoDeJugar() && !partida_actual.estaPartidaTerminada()) {
         aviso_remoto.classList.remove("oculto");
         const jugador_turno_obj = gestor_red_voz.jugadores_sala.find(
-            j => j.nombre.toLowerCase() === jug.obtenerNombreJugador().toLowerCase()
+            j => j.id_peer === jug.id_peer || j.nombre.toLowerCase() === jug.obtenerNombreJugador().toLowerCase()
         );
         const esta_conectado = jugador_turno_obj ? (jugador_turno_obj.conectado !== false) : true;
 
-        if (!esta_conectado) {
-            aviso_remoto.innerHTML = `⚠️ <span id="nombre_jugador_remoto">${jug.obtenerNombreJugador()}</span> se desconectó. ` 
-                + (gestor_red_voz.es_anfitrion 
-                    ? `<button class="btn_expulsar_aviso" onclick="confirmarExpulsionJugador('${jugador_turno_obj.id_peer}', '${jug.obtenerNombreJugador()}')">Expulsar para continuar</button>` 
+        if (!esta_conectado && jugador_turno_obj) {
+            aviso_remoto.innerHTML = `⚠️ <span id="nombre_jugador_remoto">${jug.obtenerNombreJugador()}</span> se desconectó. `
+                + (gestor_red_voz.es_anfitrion
+                    ? `<button class="btn_expulsar_aviso" onclick="confirmarExpulsionJugador('${jugador_turno_obj.id_peer}', '${jug.obtenerNombreJugador()}')">Expulsar para continuar</button>`
                     : `Esperando a que regrese...`);
         } else {
             aviso_remoto.innerHTML = `Esperando jugada de <span id="nombre_jugador_remoto">${jug.obtenerNombreJugador()}</span>...`;
@@ -810,7 +1069,6 @@ function actualizarBotonesLibretaUI(libreta_actual, tiros_hechos, puedo_actuar) 
 }
 
 function actualizarTablasInferioresUI() {
-    // 1. Ranking ordenado de mayor a menor
     const copia_ranking = [...partida_actual.obtenerListaJugadores()];
     copia_ranking.sort((j1, j2) => j2.obtenerPuntajeTotal() - j1.obtenerPuntajeTotal());
 
@@ -824,7 +1082,6 @@ function actualizarTablasInferioresUI() {
         tbody_rank.appendChild(tr);
     });
 
-    // 2. Tablero detallado resaltando en amarillo la fila del jugador en turno
     const tbody_resumen = document.getElementById("cuerpo_tabla_resumen");
     tbody_resumen.innerHTML = "";
     const turno_actual = partida_actual.obtenerIndiceTurnoActual();
@@ -854,7 +1111,6 @@ function dibujarTodosLosDadosIniciales() {
     }
 }
 
-// Equivalente exacto a PanelDadoGrafico.java
 function dibujarDadoIndividual(indice_dado) {
     const canvas = document.getElementById(`canvas_dado_${indice_dado}`);
     if (!canvas) return;
@@ -957,7 +1213,6 @@ function dibujarPuntoDado(ctx, cx, cy, radio) {
     ctx.fill();
 }
 
-// Equivalente exacto a PanelMesaConCubilete.java (vaso de cuero inclinado con anillos dorados)
 function dibujarCubileteEnCanvas(visible, pos_x_cubilete) {
     const canvas = document.getElementById("canvas_cubilete_animado");
     if (!canvas) return;
@@ -989,7 +1244,6 @@ function dibujarCubileteEnCanvas(visible, pos_x_cubilete) {
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Anillos dorados del cubilete
     ctx.beginPath();
     ctx.moveTo(x_izq + 32, y_centro - 69);
     ctx.lineTo(x_izq + 32, y_centro + 69);
@@ -997,7 +1251,6 @@ function dibujarCubileteEnCanvas(visible, pos_x_cubilete) {
     ctx.lineTo(x_der - 26, y_centro + 57);
     ctx.stroke();
 
-    // Boca izquierda oscura
     ctx.beginPath();
     ctx.ellipse(x_izq, y_centro, 14, mitad_boca_izq, 0, 0, Math.PI * 2);
     ctx.fillStyle = "rgb(42, 18, 5)";
@@ -1006,7 +1259,7 @@ function dibujarCubileteEnCanvas(visible, pos_x_cubilete) {
     ctx.stroke();
 }
 
-// ==================== MELODIA SINTETIZADA (IGUAL A CONTROLADORCACHO.JAVA) ====================
+// ==================== MELODIA SINTETIZADA ====================
 
 function reproducirMelodiaVictoria() {
     try {
@@ -1058,16 +1311,47 @@ function accionVolverAlMenu() {
 
 function mostrarFinDePartida() {
     const ganador = partida_actual.obtenerJugadorGanador();
-    if (ganador) {
-        gestor_archivos_web.registrarGanador(
-            ganador.obtenerNombreJugador(),
-            ganador.obtenerPuntajeTotal(),
-            partida_actual.obtenerModoJuego()
-        );
+    if (!estadistica_partida_registrada) {
+        estadistica_partida_registrada = true;
+        if (ganador) {
+            gestor_archivos_web.registrarGanador(
+                ganador.obtenerNombreJugador(),
+                ganador.obtenerPuntajeTotal(),
+                partida_actual.obtenerModoJuego()
+            );
+        }
+
+        // Registrar estadistica en el perfil personal si participaron 2 o mas jugadores
+        if (partida_actual.obtenerCantidadJugadores() >= 2 && estoySentadoEnPartidaActual()) {
+            const gane_yo = ganador && (
+                (es_partida_online && ganador.id_peer === gestor_red_voz.mi_id_peer) ||
+                (!es_partida_online && ganador === partida_actual.obtenerJugadorPorIndice(0))
+            );
+            const fue_dormida = Boolean(ganador && ganador.obtenerGanoPorDormida());
+            const nuevo_p = gestor_archivos_web.registrarResultadoEnPerfil(Boolean(gane_yo), fue_dormida);
+            renderizarBarraEstadisticasPerfil(nuevo_p);
+            gestor_red_voz.sincronizarMiPerfilLocal();
+        }
     }
+
     const resumen = partida_actual.obtenerResumenResultado();
     reproducirMelodiaVictoria();
-    mostrarAvisoModal("Fin del Juego — PARTIDA FINALIZADA", `<p style="font-size:16px;font-weight:800;">${resumen}</p>`);
+
+    let boton_extra_online = "";
+    if (es_partida_online) {
+        boton_extra_online = `
+            <div style="margin-top:14px;">
+                <button class="boton_accion boton_verde" onclick="accionVolverASalaDeEspera()">
+                    👥 Volver a la Sala de Espera (Unir Espectadores / Nueva Ronda)
+                </button>
+            </div>
+        `;
+    }
+
+    mostrarAvisoModal(
+        "Fin del Juego — PARTIDA FINALIZADA",
+        `<p style="font-size:16px;font-weight:800;">${resumen}</p>${boton_extra_online}`
+    );
 }
 
 function mostrarVentanaHelp() {

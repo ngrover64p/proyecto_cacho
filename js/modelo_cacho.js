@@ -464,14 +464,15 @@ class Partida {
     static MINIMO_JUGADORES = 2;
     static MAXIMO_JUGADORES = 10;
 
-    constructor(jugadores_iniciales, modo_seleccionado) {
+    constructor(jugadores_iniciales, modo_seleccionado, permitir_solitario = false) {
         this.lista_jugadores = [];
         if (Array.isArray(jugadores_iniciales)) {
             for (let indice_i = 0; indice_i < jugadores_iniciales.length && indice_i < Partida.MAXIMO_JUGADORES; indice_i++) {
                 this.lista_jugadores.push(jugadores_iniciales[indice_i]);
             }
         }
-        while (this.lista_jugadores.length < Partida.MINIMO_JUGADORES) {
+        const minimo_requerido = permitir_solitario ? 1 : Partida.MINIMO_JUGADORES;
+        while (this.lista_jugadores.length < minimo_requerido) {
             const numero_jugador = this.lista_jugadores.length + 1;
             this.lista_jugadores.push(new Jugador("Jugador " + numero_jugador));
         }
@@ -663,7 +664,7 @@ class GestorArchivosWeb {
             return nuevo_j;
         });
 
-        const partida_reconstruida = new Partida(lista_jugadores, datos_estado.modo_juego);
+        const partida_reconstruida = new Partida(lista_jugadores, datos_estado.modo_juego, true);
         partida_reconstruida.establecerIndiceTurnoActual(datos_estado.indice_turno_actual || 0);
         partida_reconstruida.establecerPartidaTerminada(Boolean(datos_estado.partida_terminada));
 
@@ -744,5 +745,77 @@ class GestorArchivosWeb {
 
     borrarHistorialGanadores() {
         localStorage.removeItem(GestorArchivosWeb.CLAVE_GANADORES);
+    }
+
+    // ==================== PERFIL DE USUARIO Y ESTADISTICAS ====================
+    static CLAVE_PERFIL_USUARIO = "cacho_perfil_usuario_v1";
+
+    obtenerPerfilUsuario() {
+        try {
+            const raw = localStorage.getItem(GestorArchivosWeb.CLAVE_PERFIL_USUARIO);
+            if (raw) {
+                const p = JSON.parse(raw);
+                return {
+                    nombre: p.nombre || "Jugador 1",
+                    alias: p.alias || ("#" + Math.floor(1000 + Math.random() * 9000)),
+                    ganadas: Number(p.ganadas) || 0,
+                    perdidas: Number(p.perdidas) || 0,
+                    dormidas: Number(p.dormidas) || 0,
+                    jugadas: Number(p.jugadas) || 0
+                };
+            }
+        } catch (e) {
+        }
+        const perfil_inicial = {
+            nombre: "Jugador 1",
+            alias: "#" + Math.floor(1000 + Math.random() * 9000),
+            ganadas: 0,
+            perdidas: 0,
+            dormidas: 0,
+            jugadas: 0
+        };
+        this.guardarPerfilUsuario(perfil_inicial);
+        return perfil_inicial;
+    }
+
+    guardarPerfilUsuario(datos_perfil) {
+        try {
+            const actual = this.obtenerPerfilUsuarioInterno();
+            const nuevo = {
+                nombre: String(datos_perfil.nombre ?? actual.nombre ?? "Jugador 1").trim() || "Jugador 1",
+                alias: String(datos_perfil.alias ?? actual.alias ?? "#1000").trim() || "#1000",
+                ganadas: Number(datos_perfil.ganadas ?? actual.ganadas ?? 0),
+                perdidas: Number(datos_perfil.perdidas ?? actual.perdidas ?? 0),
+                dormidas: Number(datos_perfil.dormidas ?? actual.dormidas ?? 0),
+                jugadas: Number(datos_perfil.jugadas ?? actual.jugadas ?? 0)
+            };
+            localStorage.setItem(GestorArchivosWeb.CLAVE_PERFIL_USUARIO, JSON.stringify(nuevo));
+            return nuevo;
+        } catch (e) {
+            return datos_perfil;
+        }
+    }
+
+    obtenerPerfilUsuarioInterno() {
+        try {
+            const raw = localStorage.getItem(GestorArchivosWeb.CLAVE_PERFIL_USUARIO);
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    registrarResultadoEnPerfil(gano_partida, fue_dormida) {
+        const p = this.obtenerPerfilUsuario();
+        p.jugadas = (p.jugadas || 0) + 1;
+        if (gano_partida) {
+            p.ganadas = (p.ganadas || 0) + 1;
+            if (fue_dormida) {
+                p.dormidas = (p.dormidas || 0) + 1;
+            }
+        } else {
+            p.perdidas = (p.perdidas || 0) + 1;
+        }
+        return this.guardarPerfilUsuario(p);
     }
 }

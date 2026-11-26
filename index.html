@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CACHO - Local y Online</title>
-    <link rel="stylesheet" href="css/estilos_cacho.css?v=3">
+    <link rel="stylesheet" href="css/estilos_cacho.css?v=4">
     <!-- Libreria MQTT over WebSockets (WSS) para conexion instantanea entre PC y Celular sin bloqueos de Router/NAT -->
     <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
     <!-- Libreria PeerJS para Audio WebRTC en GitHub Pages -->
@@ -27,18 +27,29 @@
                 </button>
             </div>
 
-            <!-- SECCION A: MODO ONLINE CON ENLACE -->
+            <!-- SECCION A: MODO ONLINE CON ENLACE Y SALA ESTILO WOLFTEAM -->
             <div id="panel_config_online" class="seccion_menu">
                 <div class="caja_blanca">
-                    <h3 class="titulo_caja">Nombre del jugador</h3>
-                    <div class="fila_campo">
-                        <input type="text" id="input_nombre_online" class="campo_texto" placeholder="Escribe tu nombre..." maxlength="18" value="Jugador 1">
+                    <div class="cabecera_perfil">
+                        <h3 class="titulo_caja" style="margin-bottom:0;border:none;">Nombre del jugador</h3>
+                        <span id="badge_alias_perfil" class="badge_alias">#0000</span>
+                    </div>
+                    <div class="fila_campo" style="margin-top:6px;">
+                        <input type="text" id="input_nombre_online" class="campo_texto" placeholder="Escribe tu nombre..." maxlength="18" value="Jugador 1" oninput="actualizarPerfilDesdeInputs()">
+                        <input type="text" id="input_alias_online" class="campo_texto campo_alias" placeholder="#Alias" maxlength="8" value="#BO1" title="Tu identificador o alias" oninput="actualizarPerfilDesdeInputs()">
+                    </div>
+                    <!-- Estadisticas simples del jugador -->
+                    <div id="barra_estadisticas_perfil" class="barra_stats_usuario">
+                        <span>🏆 Ganadas: <b id="stat_ganadas">0</b></span>
+                        <span>❌ Perdidas: <b id="stat_perdidas">0</b></span>
+                        <span>⚡ Dormidas: <b id="stat_dormidas">0</b></span>
+                        <span>🎲 Jugadas: <b id="stat_jugadas">0</b></span>
                     </div>
                 </div>
 
                 <!-- Sub-bloque cuando entra normalmente a crear o unirse -->
                 <div id="subpanel_crear_o_unirse" class="caja_blanca">
-                    <h3 class="titulo_caja">2. Crear Sala o Entrar con Código</h3>
+                    <h3 class="titulo_caja">Crear Sala o Entrar con Código</h3>
                     <div class="fila_campo">
                         <label for="combo_modo_online">Modo:</label>
                         <select id="combo_modo_online" class="selector_modo">
@@ -48,34 +59,49 @@
                         </select>
                     </div>
                     <button class="boton_accion boton_verde" onclick="accionCrearSalaOnline()">
-                        ➕ CREAR SALA Y GENERAR ENLACE
+                        ➕ CREAR SALA
                     </button>
 
-                    <div class="separador_o"><span>o únete a la sala de un amigo</span></div>
+                    <div class="separador_o"><span>o únete a una sala existente con su código</span></div>
 
                     <div class="fila_unirse_codigo">
-                        <input type="text" id="input_codigo_sala" class="campo_texto campo_codigo" placeholder="Código (ej: C4CH0)" maxlength="10">
+                        <input type="text" id="input_codigo_sala" class="campo_texto campo_codigo" placeholder="CÓDIGO" maxlength="10">
                         <button class="boton_accion boton_azul" onclick="accionUnirseSalaOnline()">
                             ENTRAR A SALA
                         </button>
                     </div>
                 </div>
 
-                <!-- Sub-bloque Sala de Espera (Lobby Online) -->
+                <!-- Sub-bloque Sala de Espera (Lobby Online estilo WolfTeam) -->
                 <div id="subpanel_sala_espera" class="caja_blanca oculto">
                     <div class="cabecera_sala">
-                        <span id="etiqueta_rol_sala" class="badge_sala">SALA ONLINE</span>
+                        <div class="info_titulo_sala">
+                            <span id="etiqueta_rol_sala" class="badge_sala">SALA: ALALAY</span>
+                            <!-- Selector rapido para que el Master cambie el modo dentro de la sala -->
+                            <select id="combo_cambiar_modo_sala" class="selector_modo_mini oculto" onchange="accionMasterCambiarModoSala()">
+                                <option value="TIRO_VOLTEO">Modo: TIRO_VOLTEO</option>
+                                <option value="ALALAY">Modo: ALALAY</option>
+                                <option value="TRIPLETE">Modo: TRIPLETE</option>
+                            </select>
+                        </div>
                         <span id="etiqueta_codigo_sala" class="codigo_destacado">----</span>
                     </div>
 
                     <div class="caja_enlace_invitacion">
-                        <p class="texto_ayuda_enlace">Comparte este enlace por WhatsApp para que entren directo:</p>
+                        <p class="texto_ayuda_enlace">Invita amigos con el enlace, código o escaneando el QR:</p>
                         <div class="fila_copiar_enlace">
                             <input type="text" id="input_enlace_invitacion" class="campo_texto" readonly>
                             <button class="boton_copiar" onclick="accionCopiarEnlaceInvitacion()">📋 Copiar Link</button>
                             <button class="boton_whatsapp" onclick="accionCompartirWhatsApp()">📲 WhatsApp</button>
+                            <button class="boton_qr" onclick="accionAlternarQRSala()">📱 QR</button>
                         </div>
                         <p id="aviso_copiado" class="aviso_exito oculto">¡Enlace copiado al portapapeles!</p>
+
+                        <!-- Contenedor desplegable del QR de la sala -->
+                        <div id="caja_qr_sala" class="contenedor_qr_inline oculto">
+                            <img id="img_qr_sala" class="imagen_qr" alt="QR de la Sala" src="">
+                            <p class="texto_qr_ayuda">Escanea con la cámara del celular para entrar directo a esta sala</p>
+                        </div>
                     </div>
 
                     <!-- Controles de Audio tipo Meet desde la sala de espera -->
@@ -83,18 +109,34 @@
                         <button id="boton_microfono_lobby" class="boton_voz micro_apagado" onclick="accionAlternarMicrofono()">
                             🎤 Micrófono: OFF (Toca para hablar)
                         </button>
-                        <span id="estado_voz_lobby" class="texto_estado_voz">Voz WebRTC lista</span>
+                        <span id="estado_voz_lobby" class="texto_estado_voz">Sala conectada en vivo</span>
                     </div>
 
-                    <h4 class="subtitulo_lista">Jugadores conectados en la sala (<span id="contador_jugadores_sala">1</span>/10):</h4>
+                    <div class="cabecera_lista_lobby">
+                        <h4 class="subtitulo_lista">Usuarios en la sala (<span id="contador_jugadores_sala">1</span>/10):</h4>
+                        <div class="botones_estado_jugador_lobby">
+                            <button id="boton_listo_lobby" class="boton_mini_lobby btn_listo_activo" onclick="accionAlternarListoEnSala()">
+                                ✅ Estoy Listo
+                            </button>
+                            <button id="boton_rol_espectador_lobby" class="boton_mini_lobby" onclick="accionAlternarRolEspectadorEnSala()">
+                                🪑 Jugador
+                            </button>
+                        </div>
+                    </div>
+
                     <ul id="lista_jugadores_lobby" class="lista_lobby"></ul>
 
                     <div class="acciones_lobby">
+                        <!-- Boton para el Master: Iniciar partida con los jugadores sentados -->
                         <button id="boton_iniciar_online_host" class="boton_accion boton_verde" onclick="accionHostIniciarPartidaOnline()">
-                            ▶ EMPEZAR PARTIDA AHORA
+                            ▶ INICIAR PARTIDA CON LOS DE LA SALA
+                        </button>
+                        <!-- Boton para el Master o cualquier usuario: Abrir/Ver la mesa de juego aunque este 1 solo usuario -->
+                        <button id="boton_abrir_mesa_solitario" class="boton_accion boton_azul" onclick="accionAbrirMesaSinEsperar()">
+                            🎲 IR A LA MESA DE DADOS (SIN ESPERAR)
                         </button>
                         <p id="mensaje_esperando_host" class="texto_esperando oculto">
-                            Esperando a que el anfitrión inicie la partida...
+                            Esperando a que el 👑 Master inicie la partida...
                         </p>
                         <button class="boton_accion boton_gris" onclick="accionSalirSalaOnline()">
                             Salir de la Sala
@@ -141,8 +183,9 @@
                 </div>
             </div>
 
-            <!-- Boton acceso rapido a Historial de Ganadores desde cualquier pestaña -->
+            <!-- Boton acceso rapido a Historial de Ganadores, QR general y Reglas -->
             <div id="pie_menu_online" class="pie_acciones_extra">
+                <button class="boton_pequeno" onclick="mostrarModalQRJuegoGeneral()">📱 QR / Compartir Juego</button>
                 <button class="boton_pequeno" onclick="abrirModalPartidasGuardadas()">📂 Partidas Guardadas</button>
                 <button class="boton_pequeno" onclick="abrirModalGanadores()">🏆 Lista de Ganadores</button>
                 <button class="boton_pequeno" onclick="mostrarVentanaHelp()">❓ Reglas (Help)</button>
@@ -153,6 +196,19 @@
     <!-- ==================== PANTALLA 2: MESA DE JUEGO ==================== -->
     <div id="pantalla_juego" class="oculto">
         <div class="contenedor_juego">
+
+            <!-- Banner superior si el usuario esta en Modo Espectador o practicando solo -->
+            <div id="banner_estado_mesa_online" class="banner_espectador oculto">
+                <span id="texto_banner_mesa_online">👁️ MODO ESPECTADOR — Viendo partida en vivo</span>
+                <div class="acciones_banner_espectador">
+                    <button id="btn_unirse_proxima_ronda" class="btn_banner_accion" onclick="accionSolicitarEntrarAJugar()">
+                        🪑 Unirme a Jugar
+                    </button>
+                    <button id="btn_master_sala_espera_banner" class="btn_banner_accion btn_dorado oculto" onclick="accionVolverASalaDeEspera()">
+                        👥 Ir a Sala de Jugadores
+                    </button>
+                </div>
+            </div>
 
             <!-- BARRA SUPERIOR: TURNO, TIROS/VOLTEOS Y CONTROLES DE VOZ -->
             <header class="panel_superior_turno">
@@ -165,6 +221,9 @@
                 <!-- Controles de Audio tipo Meet integrados en la partida -->
                 <div id="panel_controles_voz_juego" class="grupo_controles_voz">
                     <div id="chips_jugadores_voz" class="chips_voz"></div>
+                    <button id="boton_sala_espera_juego" class="boton_voz btn_sala_top" onclick="accionVolverASalaDeEspera()">
+                        👥 Sala (<span id="num_en_sala_top">1</span>)
+                    </button>
                     <button id="boton_microfono_juego" class="boton_voz micro_apagado" onclick="accionAlternarMicrofono()">
                         🎤 Mic: OFF
                     </button>
@@ -183,7 +242,6 @@
 
                     <div id="contenedor_mesa_cubilete" class="mesa_verde_dados">
                         <div class="fila_cinco_dados">
-                            <!-- Se generan las 5 columnas de dados dinamicamente -->
                             <div class="columna_dado" data-pos="0">
                                 <canvas id="canvas_dado_0" class="canvas_dado" width="90" height="90" onclick="accionToqueDirectoDado(0)"></canvas>
                                 <div class="acciones_dado">
@@ -302,6 +360,9 @@
 
                 <!-- Barra de botones inferior -->
                 <div class="barra_botones_inferior">
+                    <button id="boton_volver_sala_juego" class="btn_inferior btn_sala_bottom oculto" onclick="accionVolverASalaDeEspera()">
+                        👥 Sala de Jugadores / Espectadores
+                    </button>
                     <button id="boton_copiar_link_juego" class="btn_inferior btn_invitar oculto" onclick="accionCopiarEnlaceInvitacion()">
                         🔗 Copiar Link Sala
                     </button>
@@ -332,8 +393,8 @@
     <div id="contenedor_audios_remotos" style="display:none;"></div>
 
     <!-- Scripts modulares del proyecto -->
-    <script src="js/modelo_cacho.js?v=3"></script>
-    <script src="js/red_y_voz.js?v=3"></script>
-    <script src="js/controlador_vista.js?v=3"></script>
+    <script src="js/modelo_cacho.js?v=4"></script>
+    <script src="js/red_y_voz.js?v=4"></script>
+    <script src="js/controlador_vista.js?v=4"></script>
 </body>
 </html>

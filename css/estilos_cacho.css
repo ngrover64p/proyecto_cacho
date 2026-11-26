@@ -968,3 +968,216 @@ body {
         font-size: 12px;
     }
 }
+
+/* ==================== PERFIL, QR, LOBBY WOLFTEAM Y MODO ESPECTADOR ==================== */
+
+.cabecera_perfil {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e6edf5;
+    padding-bottom: 4px;
+}
+
+.badge_alias {
+    background-color: #142d5c;
+    color: #ffe650;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.campo_alias {
+    max-width: 95px;
+    text-align: center;
+    font-weight: 800;
+    color: #142d5c;
+}
+
+.barra_stats_usuario {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+    background-color: #f4f7fb;
+    border: 1px solid #d7e1ee;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #1f3352;
+}
+
+.info_titulo_sala {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.selector_modo_mini {
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: 5px;
+    border: 1px solid #142d5c;
+    background-color: #eef3f9;
+    color: #142d5c;
+    cursor: pointer;
+}
+
+.boton_qr {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+    background-color: #142d5c;
+    cursor: pointer;
+}
+
+.contenedor_qr_inline {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #ffffff;
+    border: 1px solid #c5d4e8;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.imagen_qr {
+    width: 170px;
+    height: 170px;
+    border-radius: 6px;
+    border: 2px solid #142d5c;
+    padding: 4px;
+    background: #ffffff;
+}
+
+.texto_qr_ayuda {
+    font-size: 11px;
+    color: #34495e;
+    margin-top: 4px;
+    font-weight: 600;
+}
+
+.cabecera_lista_lobby {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.botones_estado_jugador_lobby {
+    display: flex;
+    gap: 6px;
+}
+
+.boton_mini_lobby {
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: 5px;
+    border: 1px solid #8ea4be;
+    background-color: #eef3f9;
+    color: #142d5c;
+    cursor: pointer;
+}
+
+.boton_mini_lobby.btn_listo_activo {
+    background-color: #27ae60;
+    color: #ffffff;
+    border-color: #1e8449;
+}
+
+.boton_mini_lobby.btn_espectador_activo {
+    background-color: #8e44ad;
+    color: #ffffff;
+    border-color: #6c3483;
+}
+
+.badge_rol_lobby {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 5px;
+}
+
+.badge_master {
+    background-color: #ffe650;
+    color: #142d5c;
+    border: 1px solid #d4af37;
+}
+
+.badge_listo {
+    background-color: #d1f2d9;
+    color: #14642d;
+}
+
+.badge_espera {
+    background-color: #fdedec;
+    color: #8c2828;
+}
+
+.badge_espectador {
+    background-color: #ebdef0;
+    color: #5b2c6f;
+}
+
+.stats_mini_lobby {
+    font-size: 10px;
+    color: #5c708a;
+    font-weight: 600;
+    margin-left: 4px;
+}
+
+.banner_espectador {
+    background-color: #4a235a;
+    color: #ffffff;
+    padding: 8px 14px;
+    border-radius: 7px;
+    border: 2px solid #af7ac5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.acciones_banner_espectador {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn_banner_accion {
+    background-color: #27ae60;
+    color: #ffffff;
+    border: none;
+    border-radius: 5px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.btn_banner_accion.btn_dorado {
+    background-color: #f39c12;
+}
+
+.btn_sala_top {
+    background-color: #d35400;
+}
+
+.btn_sala_bottom {
+    background-color: #8e44ad;
+    color: #ffffff;
+    border: none;
+}
+
